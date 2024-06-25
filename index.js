@@ -1,32 +1,38 @@
-const express = require('express');
-const app = express();
-const port = 3000;
-
-const versionDetailsRoute = require('./versionDetails');
-
-app.use('/api', versionDetailsRoute);
-
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-});
-
-
-
 // const express = require('express');
 // const app = express();
 // const port = 3000;
 
-// // Mock data - replace this with your actual data retrieval logic
-// const versionDetails = [
-//     { environment: 'Development', version: '1.0.0', deployedAt: '2024-06-20T10:00:00Z' },
-//     { environment: 'Testing', version: '1.1.0', deployedAt: '2024-06-21T11:00:00Z' },
-//     { environment: 'Production', version: '1.2.0', deployedAt: '2024-06-22T12:00:00Z' }
-// ];
+// const versionDetailsRoute = require('./versionDetails');
 
-// app.get('/api/versions', (req, res) => {
-//     res.json(versionDetails);
-// });
+// app.use('/api', versionDetailsRoute);
 
 // app.listen(port, () => {
-//     console.log(`Server is running on http://localhost:${port}`);
+//     console.log(`Server running on port ${port}`);
 // });
+
+
+
+const express = require('express');
+const app = express();
+const port = 3000;
+
+// Mock data - replace this with your actual data retrieval logic from datastore
+const versionDetails = [
+    {
+        "ApplicationName": "composite-code-template",
+        "TargetEnvironment": "MAE-CIT",
+        "Version": "1.6.131",
+        "Release": "R1.0 Calculator",
+        "JiraTaskId": "https://estjira.barcapint.com/browse/MAEAPIRELE-7",
+        "ReleaseNotes": "https://estjira.barcapint.com/browse/SECBOW23-11946",
+        "Date_Time": "17/01/2024 09:14:03"
+    }
+];
+
+app.get('/api/versions', (req, res) => {
+    res.json(versionDetails);
+});
+
+app.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
+});

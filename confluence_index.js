@@ -6,16 +6,26 @@ app.post('/api/post-to-confluence', async (req, res) => {
     const auth = Buffer.from('your-email@example.com:your-api-token').toString('base64');
 
     const versionDetails = [
-        { environment: 'Development', version: '1.0.0', deployedAt: '2024-06-20T10:00:00Z' },
-        { environment: 'Testing', version: '1.1.0', deployedAt: '2024-06-21T11:00:00Z' },
-        { environment: 'Production', version: '1.2.0', deployedAt: '2024-06-22T12:00:00Z' }
+        {
+            "ApplicationName": "composite-code-template",
+            "TargetEnvironment": "MAE-CIT",
+            "Version": "1.6.131",
+            "Release": "R1.0 Calculator",
+            "JiraTaskId": "https://estjira.barcapint.com/browse/MAEAPIRELE-7",
+            "ReleaseNotes": "https://estjira.barcapint.com/browse/SECBOW23-11946",
+            "Date_Time": "17/01/2024 09:14:03"
+        }
     ];
 
     const versionTableHtml = versionDetails.map(version => `
         <tr>
-            <td>${version.environment}</td>
-            <td>${version.version}</td>
-            <td>${new Date(version.deployedAt).toLocaleString()}</td>
+            <td>${version.ApplicationName}</td>
+            <td>${version.TargetEnvironment}</td>
+            <td>${version.Version}</td>
+            <td>${version.Release}</td>
+            <td><a href="${version.JiraTaskId}">${version.JiraTaskId}</a></td>
+            <td><a href="${version.ReleaseNotes}">${version.ReleaseNotes}</a></td>
+            <td>${version.Date_Time}</td>
         </tr>
     `).join('');
 
@@ -23,9 +33,13 @@ app.post('/api/post-to-confluence', async (req, res) => {
         <table>
             <thead>
                 <tr>
+                    <th>Application Name</th>
                     <th>Environment</th>
                     <th>Version</th>
-                    <th>Deployed At</th>
+                    <th>Release</th>
+                    <th>Jira Task ID</th>
+                    <th>Release Notes</th>
+                    <th>Date/Time</th>
                 </tr>
             </thead>
             <tbody>
