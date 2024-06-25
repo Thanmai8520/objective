@@ -1,32 +1,28 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
 
 const VersionTable = () => {
     const [versions, setVersions] = useState([]);
 
     useEffect(() => {
-        axios.get('http://localhost:3000/api/versions')  // Update this URL to match your backend
+        fetch('http://localhost:3000/api/versions')
             .then(response => {
-                setVersions(response.data);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Data from API:', data);
+                setVersions(data);
             })
             .catch(error => {
-                console.error('There was an error fetching the version details!', error);
+                console.error('Error fetching data:', error);
             });
     }, []);
 
-    const postToConfluence = () => {
-        axios.post('http://localhost:3000/api/post-to-confluence')  // Update this URL to match your backend
-            .then(response => {
-                alert('Posted to Confluence successfully');
-            })
-            .catch(error => {
-                console.error('There was an error posting to Confluence!', error);
-                alert('Error posting to Confluence');
-            });
-    };
-
     return (
         <div>
+            <h2>Version Details</h2>
             <table>
                 <thead>
                     <tr>
@@ -53,7 +49,6 @@ const VersionTable = () => {
                     ))}
                 </tbody>
             </table>
-            <button onClick={postToConfluence}>Post to Confluence</button>
         </div>
     );
 };
