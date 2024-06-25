@@ -5,7 +5,7 @@ const VersionTable = () => {
     const [versions, setVersions] = useState([]);
 
     useEffect(() => {
-        axios.get('/api/versions')
+        axios.get('http://localhost:3000/api/versions')  // Update this URL to match your backend
             .then(response => {
                 setVersions(response.data);
             })
@@ -15,7 +15,7 @@ const VersionTable = () => {
     }, []);
 
     const postToConfluence = () => {
-        axios.post('/api/post-to-confluence')
+        axios.post('http://localhost:3000/api/post-to-confluence')  // Update this URL to match your backend
             .then(response => {
                 alert('Posted to Confluence successfully');
             })
