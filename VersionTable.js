@@ -1,35 +1,48 @@
 import React, { useEffect, useState } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-const VersionTable = ({ applicationName }) => {
-    const [versions, setVersions] = useState([]);
-    const [error, setError] = useState(null);
+const VersionTable = ({ versionDetails }) => {
+    const [selectedAppName, setSelectedAppName] = useState('');
+    const [filteredVersions, setFilteredVersions] = useState([]);
+    const [applicationNames, setApplicationNames] = useState([]);
 
     useEffect(() => {
-        fetch(`http://localhost:3000/mae/getBuild/${applicationName}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok ' + response.statusText);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('Data from API:', data); // Log the fetched data
-                setVersions(data);
-            })
-            .catch(error => {
-                console.error('Error fetching version details:', error);
-                setError(error.message);
-            });
-    }, [applicationName]);
+        // Extract unique application names from versionDetails
+        const uniqueAppNames = Array.from(new Set(versionDetails.map(version => version.ApplicationName)));
+        setApplicationNames(uniqueAppNames);
+    }, [versionDetails]);
 
-    if (error) {
-        return <div>Error: {error}</div>;
-    }
+    useEffect(() => {
+        // Filter versions based on selected application name
+        if (selectedAppName) {
+            const filteredVersions = versionDetails.filter(version => version.ApplicationName === selectedAppName);
+            setFilteredVersions(filteredVersions);
+        } else {
+            setFilteredVersions([]);
+        }
+    }, [selectedAppName, versionDetails]);
+
+    const handleSelectChange = (event) => {
+        setSelectedAppName(event.target.value);
+    };
 
     return (
         <div className="container">
             <h2 className="my-4">Version Details</h2>
+            <div className="mb-3">
+                <label htmlFor="appNameSelect" className="form-label">Select Application Name:</label>
+                <select
+                    id="appNameSelect"
+                    className="form-select"
+                    value={selectedAppName}
+                    onChange={handleSelectChange}
+                >
+                    <option value="">All Applications</option>
+                    {applicationNames.map((appName, index) => (
+                        <option key={index} value={appName}>{appName}</option>
+                    ))}
+                </select>
+            </div>
             <table className="table table-striped">
                 <thead>
                     <tr>
@@ -43,8 +56,8 @@ const VersionTable = ({ applicationName }) => {
                     </tr>
                 </thead>
                 <tbody>
-                    {versions.length > 0 ? (
-                        versions.map((version, index) => (
+                    {filteredVersions.length > 0 ? (
+                        filteredVersions.map((version, index) => (
                             <tr key={index}>
                                 <td>{version.ApplicationName}</td>
                                 <td>{version.TargetEnvironment}</td>
