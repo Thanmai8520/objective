@@ -3,18 +3,19 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 
 const VersionTable = () => {
     const [versions, setVersions] = useState([]);
-    const [applicationName, setApplicationName] = useState('');
+    const [selectedApplication, setSelectedApplication] = useState('');
     const [error, setError] = useState(null);
     const [applicationNames, setApplicationNames] = useState([]);
 
     useEffect(() => {
+        // Fetch all application names from the API
         fetch(`http://localhost:3000/mae/getBuild`)
             .then(response => response.json())
             .then(data => {
                 const uniqueAppNames = [...new Set(data.map(build => build.ApplicationName))];
                 setApplicationNames(uniqueAppNames);
                 if (uniqueAppNames.length > 0) {
-                    setApplicationName(uniqueAppNames[0]);
+                    setSelectedApplication(uniqueAppNames[0]); // Select the first application by default
                 }
             })
             .catch(error => {
@@ -24,8 +25,9 @@ const VersionTable = () => {
     }, []);
 
     useEffect(() => {
-        if (applicationName) {
-            fetch(`http://localhost:3000/mae/getBuild/${applicationName}`)
+        // Fetch versions based on selected application
+        if (selectedApplication) {
+            fetch(`http://localhost:3000/mae/getBuild/${selectedApplication}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok ' + response.statusText);
@@ -41,7 +43,11 @@ const VersionTable = () => {
                     setError(error.message);
                 });
         }
-    }, [applicationName]);
+    }, [selectedApplication]);
+
+    const handleApplicationChange = (event) => {
+        setSelectedApplication(event.target.value);
+    };
 
     if (error) {
         return <div>Error: {error}</div>;
@@ -55,9 +61,10 @@ const VersionTable = () => {
                 <select
                     id="application-select"
                     className="form-select"
-                    value={applicationName}
-                    onChange={e => setApplicationName(e.target.value)}
+                    value={selectedApplication}
+                    onChange={handleApplicationChange}
                 >
+                    <option value="">All Applications</option>
                     {applicationNames.map((name, index) => (
                         <option key={index} value={name}>{name}</option>
                     ))}
