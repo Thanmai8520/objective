@@ -1,48 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
-const VersionTable = ({ applicationName }) => {
-    const [builds, setBuilds] = useState([]);
+const VersionTable = () => {
+    const [versions, setVersions] = useState([]);
 
     useEffect(() => {
-        const fetchBuilds = async () => {
-            try {
-                const response = await fetch(`http://localhost:3000/mae/getBuild/${applicationName}`);
-                if (!response.ok) {
-                    throw new Error('Failed to fetch build details');
-                }
-                const data = await response.json();
-                setBuilds(data);
-            } catch (error) {
-                console.error('Error fetching build details:', error);
-            }
-        };
-
-        fetchBuilds();
-    }, [applicationName]);
+        fetch('http://localhost:3000/api/versions')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Data from API:', data);
+                setVersions(data);
+            })
+            .catch(error => {
+                console.error('Error fetching version details:', error);
+            });
+    }, []);
 
     return (
-        <div>
-            <h2>Build Details for {applicationName}</h2>
-            <table>
+        <div className="container">
+            <h2 className="my-4">Version Details</h2>
+            <table className="table table-striped">
                 <thead>
                     <tr>
-                        <th>Environment</th>
+                        <th>Application Name</th>
+                        <th>Target Environment</th>
                         <th>Version</th>
                         <th>Release</th>
                         <th>Jira Task ID</th>
                         <th>Release Notes</th>
-                        <th>Date/Time</th>
+                        <th>Date and Time</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {builds.map((build, index) => (
+                    {versions.map((version, index) => (
                         <tr key={index}>
-                            <td>{build.TargetEnvironment}</td>
-                            <td>{build.Version}</td>
-                            <td>{build.Release}</td>
-                            <td><a href={build.JiraTaskId}>{build.JiraTaskId}</a></td>
-                            <td><a href={build.ReleaseNotes}>{build.ReleaseNotes}</a></td>
-                            <td>{build.Date_Time}</td>
+                            <td>{version.ApplicationName}</td>
+                            <td>{version.TargetEnvironment}</td>
+                            <td>{version.Version}</td>
+                            <td>{version.Release}</td>
+                            <td><a href={version.JiraTaskId} target="_blank" rel="noopener noreferrer">{version.JiraTaskId}</a></td>
+                            <td><a href={version.ReleaseNotes} target="_blank" rel="noopener noreferrer">{version.ReleaseNotes}</a></td>
+                            <td>{version.Date_Time}</td>
                         </tr>
                     ))}
                 </tbody>
