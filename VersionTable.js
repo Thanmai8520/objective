@@ -8,15 +8,13 @@ const VersionTable = () => {
     const [applicationNames, setApplicationNames] = useState([]);
 
     useEffect(() => {
-        // Fetch all application names from the API
+        // Fetch all application names and build details from the API
         fetch(`http://localhost:3000/mae/getBuild`)
             .then(response => response.json())
             .then(data => {
                 const uniqueAppNames = [...new Set(data.map(build => build.ApplicationName))];
                 setApplicationNames(uniqueAppNames);
-                if (uniqueAppNames.length > 0) {
-                    setSelectedApplication(uniqueAppNames[0]); // Select the first application by default
-                }
+                setVersions(data);
             })
             .catch(error => {
                 console.error('Error fetching application names:', error);
@@ -24,29 +22,26 @@ const VersionTable = () => {
             });
     }, []);
 
-    useEffect(() => {
-        // Fetch versions based on selected application
-        if (selectedApplication) {
-            fetch(`http://localhost:3000/mae/getBuild/${selectedApplication}`)
+    const handleApplicationChange = (event) => {
+        setSelectedApplication(event.target.value);
+        if (event.target.value === '') {
+            // Fetch all build details if "All Applications" is selected
+            fetch(`http://localhost:3000/mae/getBuild`)
+                .then(response => response.json())
+                .then(data => setVersions(data))
+                .catch(error => setError(error.message));
+        } else {
+            // Fetch build details for the selected application
+            fetch(`http://localhost:3000/mae/getBuild/${event.target.value}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok ' + response.statusText);
                     }
                     return response.json();
                 })
-                .then(data => {
-                    console.log('Data from API:', data); // Log the fetched data
-                    setVersions(data);
-                })
-                .catch(error => {
-                    console.error('Error fetching version details:', error);
-                    setError(error.message);
-                });
+                .then(data => setVersions(data))
+                .catch(error => setError(error.message));
         }
-    }, [selectedApplication]);
-
-    const handleApplicationChange = (event) => {
-        setSelectedApplication(event.target.value);
     };
 
     if (error) {

@@ -21,6 +21,15 @@ const buildDetails = [
         "JiraTaskId": "https://estjira.barcapint.com/browse/MAEAPIRELE-7",
         "ReleaseNotes": "https://estjira.barcapint.com/browse/SECBOW23-11946",
         "Date_Time": "17/01/2024 09:14:03"
+    },
+    {
+        "ApplicationName": "composite-code-template1",
+        "TargetEnvironment": "MAE-SIT1",
+        "Version": "1.6.132",
+        "Release": "R1.0 Calculator",
+        "JiraTaskId": "https://estjira.barcapint.com/browse/MAEAPIRELE-7",
+        "ReleaseNotes": "https://estjira.barcapint.com/browse/SECBOW23-11946",
+        "Date_Time": "17/01/2024 09:14:03"
     }
 ];
 
