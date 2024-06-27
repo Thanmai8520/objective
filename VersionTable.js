@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import 'bootstrap/dist/css/bootstrap.min.css';
 
 const VersionTable = ({ versionDetails }) => {
     const [selectedAppName, setSelectedAppName] = useState('');
@@ -7,14 +6,14 @@ const VersionTable = ({ versionDetails }) => {
     const [applicationNames, setApplicationNames] = useState([]);
 
     useEffect(() => {
-        // Extract unique application names from versionDetails
-        const uniqueAppNames = Array.from(new Set(versionDetails.map(version => version.ApplicationName)));
-        setApplicationNames(uniqueAppNames);
+        if (versionDetails && versionDetails.length > 0) {
+            const uniqueAppNames = Array.from(new Set(versionDetails.map(version => version.ApplicationName)));
+            setApplicationNames(uniqueAppNames);
+        }
     }, [versionDetails]);
 
     useEffect(() => {
-        // Filter versions based on selected application name
-        if (selectedAppName) {
+        if (selectedAppName && versionDetails && versionDetails.length > 0) {
             const filteredVersions = versionDetails.filter(version => version.ApplicationName === selectedAppName);
             setFilteredVersions(filteredVersions);
         } else {
