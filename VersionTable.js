@@ -3,41 +3,45 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 
 const VersionTable = () => {
     const [versions, setVersions] = useState([]);
+    const [applicationName, setApplicationName] = useState('');
     const [error, setError] = useState(null);
-    const [selectedApplications, setSelectedApplications] = useState([]);
     const [applicationNames, setApplicationNames] = useState([]);
 
     useEffect(() => {
-        fetch('http://localhost:3000/mae/getBuild')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok ' + response.statusText);
-                }
-                return response.json();
-            })
+        fetch(`http://localhost:3000/mae/getBuild`)
+            .then(response => response.json())
             .then(data => {
-                console.log('Data from API:', data); // Log the fetched data
-                setVersions(data);
-                setApplicationNames([...new Set(data.map(version => version.ApplicationName))]); // Extract unique application names
+                const uniqueAppNames = [...new Set(data.map(build => build.ApplicationName))];
+                setApplicationNames(uniqueAppNames);
+                if (uniqueAppNames.length > 0) {
+                    setApplicationName(uniqueAppNames[0]);
+                }
             })
             .catch(error => {
-                console.error('Error fetching version details:', error);
+                console.error('Error fetching application names:', error);
                 setError(error.message);
             });
     }, []);
 
-    const handleFilterChange = (event) => {
-        const value = event.target.value;
-        setSelectedApplications(
-            selectedApplications.includes(value)
-                ? selectedApplications.filter(app => app !== value)
-                : [...selectedApplications, value]
-        );
-    };
-
-    const filteredVersions = selectedApplications.length > 0
-        ? versions.filter(version => selectedApplications.includes(version.ApplicationName))
-        : versions;
+    useEffect(() => {
+        if (applicationName) {
+            fetch(`http://localhost:3000/mae/getBuild/${applicationName}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok ' + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Data from API:', data); // Log the fetched data
+                    setVersions(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching version details:', error);
+                    setError(error.message);
+                });
+        }
+    }, [applicationName]);
 
     if (error) {
         return <div>Error: {error}</div>;
@@ -47,16 +51,15 @@ const VersionTable = () => {
         <div className="container">
             <h2 className="my-4">Version Details</h2>
             <div className="mb-3">
-                <label htmlFor="applicationFilter" className="form-label">Filter by Application Name:</label>
-                <select 
-                    id="applicationFilter" 
-                    className="form-select" 
-                    multiple
-                    value={selectedApplications}
-                    onChange={handleFilterChange}
+                <label htmlFor="application-select" className="form-label">Select Application:</label>
+                <select
+                    id="application-select"
+                    className="form-select"
+                    value={applicationName}
+                    onChange={e => setApplicationName(e.target.value)}
                 >
-                    {applicationNames.map((appName, index) => (
-                        <option key={index} value={appName}>{appName}</option>
+                    {applicationNames.map((name, index) => (
+                        <option key={index} value={name}>{name}</option>
                     ))}
                 </select>
             </div>
@@ -73,8 +76,8 @@ const VersionTable = () => {
                     </tr>
                 </thead>
                 <tbody>
-                    {filteredVersions.length > 0 ? (
-                        filteredVersions.map((version, index) => (
+                    {versions.length > 0 ? (
+                        versions.map((version, index) => (
                             <tr key={index}>
                                 <td>{version.ApplicationName}</td>
                                 <td>{version.TargetEnvironment}</td>

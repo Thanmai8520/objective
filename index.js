@@ -27,15 +27,17 @@ const buildDetails = [
 // GET endpoint to fetch build details by applicationName
 app.get('/mae/getBuild/:applicationName', (req, res) => {
     const { applicationName } = req.params;
-    
-    // Example: Filter buildDetails by applicationName
     const filteredBuilds = buildDetails.filter(build => build.ApplicationName === applicationName);
-    
     if (filteredBuilds.length > 0) {
         res.json(filteredBuilds);
     } else {
         res.status(404).json({ message: "Build details not found for the application name" });
     }
+});
+
+// GET endpoint to fetch all build details
+app.get('/mae/getBuild', (req, res) => {
+    res.json(buildDetails);
 });
 
 // Start server
