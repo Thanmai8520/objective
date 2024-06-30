@@ -57,11 +57,11 @@ public class CreateController {
         } catch (IllegalStateException e) {
             // Handle specific exception: EntityManagerFactory is closed
             e.printStackTrace(); // Log the stack trace for debugging
-            return new ResponseEntity<>("Database access error occurred", HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         } catch (Exception e) {
             // Handle other exceptions
             e.printStackTrace();
-            return new ResponseEntity<>(transEntryResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }
