@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -16,6 +18,7 @@ public class CreateController {
             @RequestParam String component,
             @RequestParam String awsEnvironments,
             @RequestParam String tableName,
+            @RequestParam List<String> attributes,
             @RequestParam String pkName,
             @RequestParam String pkValue,
             @RequestParam String skName,
@@ -24,8 +27,8 @@ public class CreateController {
         Map<String, AttributeValue> transEntryResponse;
 
         try {
-            transEntryResponse = DynamoDao.retrieveDataWithPKAndSK(component, awsEnvironments, tableName, pkName,
-                    pkValue, skName, skValue);
+            transEntryResponse = DynamoDAO.retrieveDataWithPKAndSK(component, awsEnvironments, tableName, attributes,
+                    pkName, pkValue, skName, skValue);
             System.out.println("transEntryResponse: " + transEntryResponse);
 
             if (transEntryResponse.isEmpty()) {
