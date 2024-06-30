@@ -6,7 +6,6 @@ import org.springframework.web.bind.annotation.*;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -55,7 +54,12 @@ public class CreateController {
                 return new ResponseEntity<>(HttpStatus.NO_CONTENT);
             }
 
+        } catch (IllegalStateException e) {
+            // Handle specific exception: EntityManagerFactory is closed
+            e.printStackTrace(); // Log the stack trace for debugging
+            return new ResponseEntity<>("Database access error occurred", HttpStatus.INTERNAL_SERVER_ERROR);
         } catch (Exception e) {
+            // Handle other exceptions
             e.printStackTrace();
             return new ResponseEntity<>(transEntryResponse, HttpStatus.INTERNAL_SERVER_ERROR);
         }
