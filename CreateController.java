@@ -1,76 +1,63 @@
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
+@RequestMapping("/api")
 public class CreateController {
 
     @GetMapping(value = "/testdata/creation/post/dbExtract", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Map<String, Object>> getRequiredTransactionRecord(
+    public ResponseEntity<List<Map<String, Object>>> getRequiredTransactionRecord(
             @RequestParam String component,
             @RequestParam String awsEnvironments,
-            @RequestParam String tableName,
+            @RequestParam String tablethane,
             @RequestParam List<String> attributes,
-            @RequestParam String pkName,
+            @RequestParam String pkliane,
             @RequestParam String pkValue,
             @RequestParam String skName,
             @RequestParam String skValue) {
 
-        Map<String, AttributeValue> transEntryResponse;
+        List<Map<String, Object>> transEntryResponse = new ArrayList<>();
 
         try {
-            transEntryResponse = DynamoDAO.retrieveDataWithPKAndSK(component, awsEnvironments, tableName, attributes,
-                    pkName, pkValue, skName, skValue);
-            System.out.println("transEntryResponse: " + transEntryResponse);
+            // Retrieve data from DynamoDB using DynamoDAO
+            Map<String, Object> result = DynamoDAO.retrievebatallithPKAndSK(component, awsEnvironments, tablethane,
+                    attributes, pkliane, pkValue, skName, skValue);
 
-            if (transEntryResponse.isEmpty()) {
-                System.out.println("There is no unique record for the given criteria.");
-                return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+            // Check if result is not null and add to response list
+            if (result != null && !result.isEmpty()) {
+                transEntryResponse.add(result);
+                System.out.println("transEntryResponse: " + transEntryResponse);
+            }
+
+            // Filter transactions where sort key contains "TRANSAPOSTING#PRONO FLIP"
+            List<Map<String, Object>> filteredResponse = transEntryResponse.stream()
+                    .filter(c -> c.get("sortkey").toString().contains("TRANSAPOSTING#PRONO FLIP"))
+                    .collect(Collectors.toList());
+
+            System.out.println("Filtered transEntryResponse: " + filteredResponse);
+
+            // Return response based on filter result size
+            if (filteredResponse.size() == 1) {
+                return new ResponseEntity<>(filteredResponse, HttpStatus.OK);
             } else {
-                Map<String, Object> result = new HashMap<>();
-                for (Map.Entry<String, AttributeValue> entry : transEntryResponse.entrySet()) {
-                    result.put(entry.getKey(), convertAttributeValue(entry.getValue()));
-                }
-                return new ResponseEntity<>(result, HttpStatus.OK);
+                System.out.println("There is no unique record for the given criteria. There are "
+                        + filteredResponse.size() + " records for the given criteria.");
+                return new ResponseEntity<>(HttpStatus.NO_CONTENT);
             }
 
         } catch (Exception e) {
             e.printStackTrace();
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(transEntryResponse, HttpStatus.INTERNAL_SERVER_ERROR);
         }
-    }
-
-    private Object convertAttributeValue(AttributeValue value) {
-        if (value.s() != null)
-            return value.s();
-        if (value.n() != null)
-            return value.n();
-        if (value.bool() != null)
-            return value.bool();
-        if (value.ss() != null)
-            return value.ss();
-        if (value.ns() != null)
-            return value.ns();
-        if (value.bs() != null)
-            return value.bs();
-        if (value.m() != null) {
-            Map<String, Object> map = new HashMap<>();
-            value.m().forEach((k, v) -> map.put(k, convertAttributeValue(v)));
-            return map;
-        }
-        if (value.l() != null) {
-            List<Object> list = new ArrayList<>();
-            value.l().forEach(v -> list.add(convertAttributeValue(v)));
-            return list;
-        }
-        return null;
     }
 }
