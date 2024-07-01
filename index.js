@@ -11,7 +11,16 @@ const pool = mysql.createPool({
     user: 'root',
     password: 'T@bleau',
     database: 'mortgages_sv',
-    connectionLimit: 10
+    connectionLimit: 10,
+    connectTimeout: 10000, // Example: 10 seconds timeout
+});
+
+pool.on('connection', function (connection) {
+    console.log('MySQL Pool connected');
+});
+
+pool.on('error', function (err) {
+    console.error('MySQL Pool error:', err);
 });
 
 // GET endpoint to fetch all build details
