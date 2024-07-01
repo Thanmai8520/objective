@@ -1,20 +1,56 @@
 const express = require('express');
-const mysql = require('mysql');
 const cors = require('cors');
+const mysql = require('mysql');
+const fs = require('fs');
 
 const app = express();
 const port = 3000;
 
-// Middleware
-app.use(cors());
+app.use(cors()); // middleware
 
-// MySQL pool connection
-var pool = mysql.createPool({
+console.log('Server Started..');
+
+app.disable('etag');
+
+const pool = mysql.createPool({
     host: '28.10.146.81',
     user: 'root',
     password: 'T@bleau',
     database: 'mortgages_sv',
-    connectionLimit: 10
+    connectionLimit: 10,
+    connectTimeout: 10000 // Increase the connection timeout
+});
+
+app.get('/refreshVSfile', (req, res) => {
+    try {
+        pool.query('SELECT * FROM vs_switchs', function (err, results, fields) {
+            let data = JSON.stringify(results);
+            fs.writeFile('vsflags.json', data, function (err) {
+                if (typeof data == 'undefined') {
+                    var emptyjson = [];
+                    res.status(500).send(emptyjson);
+                } else {
+                    var msg = { "VSFile": "JSON file is updated" };
+                    res.send(msg);
+                }
+            });
+        });
+    } catch (error) {
+        var emptyjson = [];
+        res.status(500).send(emptyjson);
+    }
+});
+
+app.get('/getvsflags/:envname', (req, res) => {
+    let env = req.params.envname;
+    try {
+        const vsfile = fs.readFileSync('./vsflags.json', 'utf8');
+        const jsonData = JSON.parse(vsfile).filter(x => x.Env_flag === env);
+        res.send(jsonData);
+    } catch (err) {
+        var emptyjson = [];
+        res.status(500).send(emptyjson);
+    }
 });
 
 // Utility function to execute a query and get results
