@@ -1,33 +1,37 @@
 const express = require('express');
-const cors = require('cors');
 const mysql = require('mysql');
+const cors = require('cors');
+
 const app = express();
 const port = 3000;
 
+// Middleware
 app.use(cors());
 
-const pool = mysql.createPool({
+// MySQL pool connection
+var pool = mysql.createPool({
     host: '28.10.146.81',
     user: 'root',
     password: 'T@bleau',
     database: 'mortgages_sv',
-    connectionLimit: 10,
-    connectTimeout: 10000, // Example: 10 seconds timeout
+    connectionLimit: 10
 });
 
-pool.on('connection', function (connection) {
-    console.log('MySQL Pool connected');
-});
-
-pool.on('error', function (err) {
-    console.error('MySQL Pool error:', err);
-});
+// Utility function to execute a query and get results
+const executeQuery = (query, callback) => {
+    pool.query(query, (err, results) => {
+        if (err) {
+            return callback(err, null);
+        }
+        callback(null, results);
+    });
+};
 
 // GET endpoint to fetch all build details
 app.get('/mae/getBuild', (req, res) => {
-    pool.query('SELECT * FROM maebuildinfo', (err, results) => {
+    const query = 'SELECT * FROM maebuildinfo';
+    executeQuery(query, (err, results) => {
         if (err) {
-            console.error('Error fetching build details:', err);
             res.status(500).json({ error: 'Error fetching build details' });
         } else {
             res.json(results);
@@ -38,16 +42,27 @@ app.get('/mae/getBuild', (req, res) => {
 // GET endpoint to fetch build details by applicationName
 app.get('/mae/getBuild/:applicationName', (req, res) => {
     const { applicationName } = req.params;
-    pool.query('SELECT * FROM maebuildinfo WHERE ApplicationName = ?', [applicationName], (err, results) => {
+    const query = `SELECT * FROM maebuildinfo WHERE ApplicationName = ${mysql.escape(applicationName)}`;
+    executeQuery(query, (err, results) => {
         if (err) {
-            console.error(`Error fetching build details for ${applicationName}:`, err);
-            res.status(500).json({ error: `Error fetching build details for ${applicationName}` });
-        } else if (results.length > 0) {
-            res.json(results);
+            res.status(500).json({ error: 'Error fetching build details' });
         } else {
-            res.status(404).json({ message: 'Build details not found for the application name' });
+            if (results.length > 0) {
+                res.json(results);
+            } else {
+                res.status(404).json({ message: 'Build details not found for the application name' });
+            }
         }
     });
+});
+
+// Test database connection
+pool.query('SELECT 1', (err, results) => {
+    if (err) {
+        console.error('Error connecting to the database:', err);
+    } else {
+        console.log('Connected to the database');
+    }
 });
 
 // Start server
