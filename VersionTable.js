@@ -47,15 +47,20 @@ const VersionTable = () => {
   };
 
   if (error) {
-    return <div>Error: {error}</div>;
+    return <div className="alert alert-danger" role="alert">Error: {error}</div>;
   }
 
   return (
-    <div className="container">
+    <div className="container mt-5 pt-5">
       <h2 className="my-4">Version Details</h2>
       <div className="form-group">
         <label htmlFor="applicationSelect">Select Application:</label>
-        <select id="applicationSelect" className="form-control" value={selectedApplication} onChange={handleApplicationChange}>
+        <select
+          id="applicationSelect"
+          className="form-control"
+          value={selectedApplication}
+          onChange={handleApplicationChange}
+        >
           <option value="">All Applications</option>
           {applications.map((app, index) => (
             <option key={index} value={app}>{app}</option>
@@ -64,7 +69,7 @@ const VersionTable = () => {
       </div>
       <div className="table-responsive">
         <table className="table table-striped mt-4">
-          <thead>
+          <thead className="thead-dark">
             <tr>
               <th>Application Name</th>
               <th>Target Environment</th>
