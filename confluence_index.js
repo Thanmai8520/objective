@@ -1,86 +1,126 @@
-const axios = require('axios');
+const express = require('express');
+const cors = require('cors');
+const mysql = require('mysql');
+const fs = require('fs');
+const fetch = require('node-fetch');
 
-app.post('/api/post-to-confluence', async (req, res) => {
-    const confluenceUrl = 'https://your-confluence-instance.atlassian.net/wiki/rest/api/content/';
-    const pageId = 'YOUR_PAGE_ID';
-    const auth = Buffer.from('your-email@example.com:your-api-token').toString('base64');
+const app = express();
+const port = 3000;
 
-    const versionDetails = [
-        {
-            "ApplicationName": "composite-code-template",
-            "TargetEnvironment": "MAE-CIT",
-            "Version": "1.6.131",
-            "Release": "R1.0 Calculator",
-            "JiraTaskId": "https://estjira.barcapint.com/browse/MAEAPIRELE-7",
-            "ReleaseNotes": "https://estjira.barcapint.com/browse/SECBOW23-11946",
-            "Date_Time": "17/01/2024 09:14:03"
+app.use(cors()); // middleware
+
+console.log('Server Started..');
+
+app.disable('etag');
+
+const pool = mysql.createPool({
+    host: '28.10.146.81',
+    user: 'root',
+    password: 'T@bleau',
+    database: 'mortgages_sv',
+    connectionLimit: 10,
+    connectTimeout: 10000 // Increase the connection timeout
+});
+
+const executeQuery = (query, callback) => {
+    pool.query(query, (err, results) => {
+        if (err) {
+            return callback(err, null);
         }
-    ];
+        callback(null, results);
+    });
+};
 
-    const versionTableHtml = versionDetails.map(version => `
+// GET endpoint to fetch all build details
+app.get('/mae/getBuild', (req, res) => {
+    const query = 'SELECT * FROM maebuildinfo';
+    executeQuery(query, (err, results) => {
+        if (err) {
+            res.status(500).json({ error: 'Error fetching build details' });
+        } else {
+            res.json(results);
+        }
+    });
+});
+
+// Function to post data to Confluence
+const postToConfluence = async (data) => {
+    const confluenceUrl = 'https://your-confluence-site.atlassian.net/wiki/rest/api/content';
+    const auth = 'Basic ' + Buffer.from('your-email@example.com:your-api-token').toString('base64');
+    const pageId = '123456'; // Replace with your Confluence page ID
+    const spaceKey = 'YOUR_SPACE_KEY'; // Replace with your Confluence space key
+
+    // Convert the data to Confluence storage format
+    let tableRows = data.map(row => `
         <tr>
-            <td>${version.ApplicationName}</td>
-            <td>${version.TargetEnvironment}</td>
-            <td>${version.Version}</td>
-            <td>${version.Release}</td>
-            <td><a href="${version.JiraTaskId}">${version.JiraTaskId}</a></td>
-            <td><a href="${version.ReleaseNotes}">${version.ReleaseNotes}</a></td>
-            <td>${version.Date_Time}</td>
+            <td>${row.ApplicationName}</td>
+            <td>${row.TargetEnvironment}</td>
+            <td>${row.Version}</td>
+            <td>${row.Release}</td>
+            <td>${row.JiraTaskId}</td>
+            <td>${row.ReleaseNotes}</td>
+            <td>${row.Date_Time}</td>
         </tr>
     `).join('');
 
-    const pageContent = `
-        <table>
-            <thead>
-                <tr>
-                    <th>Application Name</th>
-                    <th>Environment</th>
-                    <th>Version</th>
-                    <th>Release</th>
-                    <th>Jira Task ID</th>
-                    <th>Release Notes</th>
-                    <th>Date/Time</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${versionTableHtml}
-            </tbody>
-        </table>
-    `;
+    const requestBody = {
+        version: { number: 2 }, // Update the version number for existing pages
+        title: 'Build Information',
+        type: 'page',
+        space: { key: spaceKey },
+        body: {
+            storage: {
+                value: `
+                    <h1>Build Information</h1>
+                    <table>
+                        <tr>
+                            <th>Application Name</th>
+                            <th>Target Environment</th>
+                            <th>Version</th>
+                            <th>Release</th>
+                            <th>Jira Task ID</th>
+                            <th>Release Notes</th>
+                            <th>Date and Time</th>
+                        </tr>
+                        ${tableRows}
+                    </table>
+                `,
+                representation: 'storage'
+            }
+        }
+    };
 
     try {
-        const response = await axios.get(`${confluenceUrl}${pageId}`, {
+        const response = await fetch(`${confluenceUrl}/${pageId}`, {
+            method: 'PUT', // Use 'POST' to create a new page or 'PUT' to update an existing page
             headers: {
-                'Authorization': `Basic ${auth}`,
+                'Authorization': auth,
                 'Content-Type': 'application/json'
-            }
-        });
-
-        const currentPage = response.data;
-        const newPage = {
-            version: {
-                number: currentPage.version.number + 1
             },
-            title: currentPage.title,
-            type: 'page',
-            body: {
-                storage: {
-                    value: pageContent,
-                    representation: 'storage'
-                }
-            }
-        };
-
-        await axios.put(`${confluenceUrl}${pageId}`, newPage, {
-            headers: {
-                'Authorization': `Basic ${auth}`,
-                'Content-Type': 'application/json'
-            }
+            body: JSON.stringify(requestBody)
         });
 
-        res.status(200).send('Posted to Confluence successfully');
+        const result = await response.json();
+        console.log('Confluence response:', result);
     } catch (error) {
-        console.error('Error posting to Confluence', error);
-        res.status(500).send('Error posting to Confluence');
+        console.error('Error posting to Confluence:', error);
     }
+};
+
+// Example endpoint to trigger posting to Confluence
+app.get('/postToConfluence', (req, res) => {
+    const query = 'SELECT * FROM maebuildinfo';
+    executeQuery(query, async (err, results) => {
+        if (err) {
+            res.status(500).json({ error: 'Error fetching build details' });
+        } else {
+            await postToConfluence(results);
+            res.json({ message: 'Data posted to Confluence successfully' });
+        }
+    });
+});
+
+// Start server
+app.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
 });
