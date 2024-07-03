@@ -34,7 +34,7 @@ const VersionTable = () => {
       }
     });
 
-    return Array.from(latestVersionsMap.values());
+    return Array.from(latestVersionsMap.values()).sort((a, b) => new Date(b.Date_Time) - new Date(a.Date_Time));
   };
 
   const handleApplicationChange = (event) => {
@@ -54,7 +54,7 @@ const VersionTable = () => {
   }
 
   return (
-    <div className="container mt-5 pt-5">
+    <div className="container">
       <h2 className="my-4">Version Details</h2>
       <div className="form-group">
         <label htmlFor="applicationSelect">Select Application:</label>
