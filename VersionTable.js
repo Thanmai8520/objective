@@ -3,6 +3,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 
 const VersionTable = () => {
   const [versions, setVersions] = useState([]);
+  const [filteredVersions, setFilteredVersions] = useState([]);
   const [selectedApplication, setSelectedApplication] = useState('');
   const [applications, setApplications] = useState([]);
   const [error, setError] = useState(null);
@@ -11,8 +12,10 @@ const VersionTable = () => {
     fetch('http://localhost:3000/mae/getBuild')
       .then(response => response.json())
       .then(data => {
-        setVersions(data);
-        const uniqueApps = [...new Set(data.map(item => item.ApplicationName))];
+        const latestVersions = getLatestVersions(data);
+        setVersions(latestVersions);
+        setFilteredVersions(latestVersions);
+        const uniqueApps = [...new Set(latestVersions.map(item => item.ApplicationName))];
         setApplications(uniqueApps);
       })
       .catch(error => {
@@ -21,28 +24,28 @@ const VersionTable = () => {
       });
   }, []);
 
+  const getLatestVersions = (data) => {
+    const latestVersionsMap = new Map();
+
+    data.forEach(item => {
+      const key = `${item.ApplicationName}-${item.TargetEnvironment}`;
+      if (!latestVersionsMap.has(key) || new Date(item.Date_Time) > new Date(latestVersionsMap.get(key).Date_Time)) {
+        latestVersionsMap.set(key, item);
+      }
+    });
+
+    return Array.from(latestVersionsMap.values());
+  };
+
   const handleApplicationChange = (event) => {
     const applicationName = event.target.value;
     setSelectedApplication(applicationName);
 
     if (applicationName === '') {
-      // Fetch all versions
-      fetch('http://localhost:3000/mae/getBuild')
-        .then(response => response.json())
-        .then(data => setVersions(data))
-        .catch(error => {
-          console.error('Error fetching version details:', error);
-          setError(error.message);
-        });
+      setFilteredVersions(versions);
     } else {
-      // Fetch versions for the selected application
-      fetch(`http://localhost:3000/mae/getBuild/${applicationName}`)
-        .then(response => response.json())
-        .then(data => setVersions(data))
-        .catch(error => {
-          console.error('Error fetching version details:', error);
-          setError(error.message);
-        });
+      const filteredData = versions.filter(version => version.ApplicationName === applicationName);
+      setFilteredVersions(filteredData);
     }
   };
 
@@ -81,8 +84,8 @@ const VersionTable = () => {
             </tr>
           </thead>
           <tbody>
-            {versions.length > 0 ? (
-              versions.map((version, index) => (
+            {filteredVersions.length > 0 ? (
+              filteredVersions.map((version, index) => (
                 <tr key={index}>
                   <td>{version.ApplicationName}</td>
                   <td>{version.TargetEnvironment}</td>
