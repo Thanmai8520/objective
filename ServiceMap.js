@@ -5,10 +5,21 @@ const ServiceMap = () => {
     const [traces, setTraces] = useState([]);
 
     useEffect(() => {
-        fetch('http://localhost:8081/traces')
-            .then(response => response.json())
-            .then(data => setTraces(data))
-            .catch(error => console.error('Error fetching traces:', error));
+        const fetchTraces = async () => {
+            try {
+                const response = await fetch('http://localhost:8081/traces');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch traces');
+                }
+                const data = await response.json();
+                setTraces(data); // Assuming data is directly the array of traces
+            } catch (error) {
+                console.error('Error fetching traces:', error);
+                setTraces([]);
+            }
+        };
+
+        fetchTraces();
     }, []);
 
     return (
