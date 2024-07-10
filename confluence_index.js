@@ -53,33 +53,32 @@ const postToConfluence = async (data) => {
             <td>${row.Date_Time}</td>
         </tr>
     `).join('');
-
-    const requestBody = {
-        version: { number: 2 }, // Update the version number for existing pages
-        title: 'Build Information',
-        type: 'page',
-        space: { key: spaceKey },
-        body: {
-            storage: {
-                value: `
-                    <h1>Build Information</h1>
-                    <table>
-                        <tr>
-                            <th>Application Name</th>
-                            <th>Target Environment</th>
-                            <th>Version</th>
-                            <th>Release</th>
-                            <th>Jira Task ID</th>
-                            <th>Release Notes</th>
-                            <th>Date and Time</th>
-                        </tr>
-                        ${tableRows}
-                    </table>
-                `,
-                representation: 'storage'
-            }
+const requestBody = {
+    version: { number: 2 }, // Update the version number for existing pages
+    title: 'Build Information', // Optionally update the title if needed
+    type: 'page',
+    body: {
+        storage: {
+            value: `
+                <h1>Build Information</h1>
+                <table>
+                    <tr>
+                        <th>Application Name</th>
+                        <th>Target Environment</th>
+                        <th>Version</th>
+                        <th>Release</th>
+                        <th>Jira Task ID</th>
+                        <th>Release Notes</th>
+                        <th>Date and Time</th>
+                    </tr>
+                    ${tableRows}
+                </table>
+            `,
+            representation: 'storage'
         }
-    };
+    }
+};
+
 
     try {
         const response = await fetch(`${confluenceUrl}/${pageId}`, {
