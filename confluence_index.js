@@ -1,7 +1,7 @@
-const express = require('express');
-const cors = require('cors');
-const mysql = require('mysql');
-const fetch = require('node-fetch');
+import express from 'express';
+import cors from 'cors';
+import mysql from 'mysql';
+import fetch from 'node-fetch';
 
 const app = express();
 const port = 3000;
@@ -21,33 +21,40 @@ const pool = mysql.createPool({
     connectTimeout: 10000 // Increase the connection timeout
 });
 
-const executeQuery = (query, callback) => {
-    pool.query(query, (err, results) => {
-        if (err) {
-            return callback(err, null);
-        }
-        callback(null, results);
+const executeQuery = (query) => {
+    return new Promise((resolve, reject) => {
+        pool.query(query, (err, results) => {
+            if (err) {
+                return reject(err);
+            }
+            resolve(results);
+        });
     });
 };
 
 // GET endpoint to fetch all build details
-app.get('/mae/getBuild', (req, res) => {
+app.get('/mae/getBuild', async (req, res) => {
     const query = 'SELECT * FROM maebuildinfo';
-    executeQuery(query, (err, results) => {
-        if (err) {
-            res.status(500).json({ error: 'Error fetching build details' });
-        } else {
-            res.json(results);
-        }
-    });
+    try {
+        const results = await executeQuery(query);
+        res.json(results);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error fetching build details' });
+    }
 });
 
 // Function to post data to Confluence
 const postToConfluence = async (data) => {
-    const confluenceUrl = 'https://your-confluence-site.atlassian.net/wiki/rest/api/content';
-    const auth = 'Basic ' + Buffer.from('your-email@example.com:your-api-token').toString('base64');
-    const pageId = '123456'; // Replace with your Confluence page ID
-    const spaceKey = 'YOUR_SPACE_KEY'; // Replace with your Confluence space key
+    if (!data || !Array.isArray(data)) {
+        console.error('Invalid data format:', data);
+        return;
+    }
+
+    const confluenceUrl = 'https://confluence.barcapint.com/display/~601515269/version+details';
+    const auth = 'Bearer NzY5NjUyNTM3MTQ20p5XYOLIJe+GABLVxIkobKJWpv7y'; // Update with your actual token
+    const pageId = '2464689130'; // Replace with your Confluence page ID
+    const spaceKey = 'viewspace.action?key=~G01515269'; // Replace with your Confluence space key
 
     // Convert the data to Confluence storage format
     let tableRows = data.map(row => `
@@ -114,16 +121,20 @@ const postToConfluence = async (data) => {
 };
 
 // Example endpoint to trigger posting to Confluence
-app.get('/postToConfluence', (req, res) => {
+app.get('/postToConfluence', async (req, res) => {
     const query = 'SELECT * FROM maebuildinfo';
-    executeQuery(query, async (err, results) => {
-        if (err) {
-            res.status(500).json({ error: 'Error fetching build details' });
-        } else {
+    try {
+        const results = await executeQuery(query);
+        if (results && Array.isArray(results) && results.length > 0) {
             await postToConfluence(results);
             res.json({ message: 'Data posted to Confluence successfully' });
+        } else {
+            res.status(404).json({ error: 'No build details found to post' });
         }
-    });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
+    }
 });
 
 // Start server
