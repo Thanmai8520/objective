@@ -1,71 +1,20 @@
-const express = require('express');
-const cors = require('cors');
-const mysql = require('mysql');
-const fetch = require('node-fetch');
+import express from 'express';
+import cors from 'cors';
+import fetch from 'node-fetch';
 
 const app = express();
 const port = 3000;
 
-app.use(cors());
+app.use(cors()); // middleware
 
 console.log('Server Started..');
 
 app.disable('etag');
 
-const pool = mysql.createPool({
-    host: '28.10.146.81',
-    user: 'root',
-    password: 'T@bleau',
-    database: 'mortgages_sv',
-    connectionLimit: 10,
-    connectTimeout: 10000 // Increase the connection timeout
-});
-
-const executeQuery = (query) => {
-    return new Promise((resolve, reject) => {
-        pool.query(query, (err, results) => {
-            if (err) {
-                reject(err);
-            } else {
-                resolve(results);
-            }
-        });
-    });
-};
-
-const fetchPageVersion = async (pageId, auth) => {
-    const confluenceUrl = `https://confluence.barcapint.com/rest/api/content/${pageId}`;
-
-    try {
-        const response = await fetch(confluenceUrl, {
-            method: 'GET',
-            headers: {
-                'Authorization': auth,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        const result = await response.json();
-        return result.version.number; // Return the current version number
-    } catch (error) {
-        console.error('Error fetching page version:', error);
-        throw error;
-    }
-};
-
 const postToConfluence = async (data) => {
     const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
-    const auth = 'Bearer NzY5NjUyNTM3MTQ20p5XYOLIJe+GABLVxIkobKJWpv7y'; // Replace with your Bearer token
+    const auth = 'Bearer NzY5NjUyNTM3MTQ20p5XYOLIJe+GABLVxIkobKJWpv7y'; // Replace with your actual token
     const pageId = '2464689130'; // Replace with your Confluence page ID
-
-    // Fetch current version number
-    let currentVersion;
-    try {
-        currentVersion = await fetchPageVersion(pageId, auth);
-    } catch (error) {
-        console.error('Failed to fetch current page version:', error);
-        return;
-    }
 
     // Convert the data to Confluence storage format
     let tableRows = data.map(row => `
@@ -81,8 +30,8 @@ const postToConfluence = async (data) => {
     `).join('');
 
     const requestBody = {
-        version: { number: currentVersion + 1 }, // Increment the current version number
-        title: 'Build Information', // Replace with the title of your Confluence page
+        version: { number: 3 }, // Set the version number statically to 3
+        title: 'Build Information', // Optionally update the title if needed
         type: 'page',
         body: {
             storage: {
@@ -108,7 +57,7 @@ const postToConfluence = async (data) => {
 
     try {
         const response = await fetch(`${confluenceUrl}/${pageId}`, {
-            method: 'PUT',
+            method: 'PUT', // Use 'PUT' to update an existing page
             headers: {
                 'Authorization': auth,
                 'Content-Type': 'application/json'
@@ -116,28 +65,30 @@ const postToConfluence = async (data) => {
             body: JSON.stringify(requestBody)
         });
 
-        const result = await response.json();
-        console.log('Confluence response:', result);
+        const text = await response.text();
+        console.log('Confluence response text:', text); // Log the raw response text
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = JSON.parse(text); // Attempt to parse JSON response
+        console.log('Confluence response:', result); // Log the parsed response
     } catch (error) {
         console.error('Error posting to Confluence:', error);
     }
 };
 
-app.get('/mae/getBuild', async (req, res) => {
-    const query = 'SELECT * FROM maebuildinfo';
-    try {
-        const results = await executeQuery(query);
-        res.json(results);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Error fetching build details' });
-    }
-});
-
+// Example endpoint to fetch data from /mae/getBuild and post to Confluence
 app.get('/postToConfluence', async (req, res) => {
-    const query = 'SELECT * FROM maebuildinfo';
+    const apiUrl = 'http://localhost:3000/mae/getBuild/demo-app'; // Replace with your actual API endpoint
+
     try {
-        const results = await executeQuery(query);
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const results = await response.json();
         await postToConfluence(results);
         res.json({ message: 'Data posted to Confluence successfully' });
     } catch (error) {
@@ -146,6 +97,7 @@ app.get('/postToConfluence', async (req, res) => {
     }
 });
 
+// Start server
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });
