@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql');
-const fs = require('fs');
 const fetch = require('node-fetch');
 
 const app = express();
@@ -102,6 +101,13 @@ const postToConfluence = async (data) => {
 
         const result = await response.json();
         console.log('Confluence response:', result);
+
+        if (response.ok) {
+            console.log('Data posted to Confluence successfully');
+        } else {
+            console.error('Failed to post data to Confluence. Status:', response.status, response.statusText);
+            console.error('Error details:', result);
+        }
     } catch (error) {
         console.error('Error posting to Confluence:', error);
     }
