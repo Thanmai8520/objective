@@ -33,9 +33,10 @@ const executeQuery = (query) => {
     });
 };
 
-// Function to post data to Confluence
+const fetch = require('node-fetch');
+
 const postToConfluence = async (data) => {
-    const confluenceUrl = 'https://confluence.barcapint.com/display/~601515269/version+details';
+    const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
     const auth = 'Bearer NzY5NjUyNTM3MTQ20p5XYOLIJe+GABLVxIkobKJWpv7y'; // Replace with your actual token
     const pageId = '2464689130'; // Replace with your Confluence page ID
     const spaceKey = 'viewspace.action?key=~G01515269'; // Replace with your Confluence space key
@@ -90,12 +91,20 @@ const postToConfluence = async (data) => {
             body: JSON.stringify(requestBody)
         });
 
-        const result = await response.json();
-        console.log('Confluence response:', result);
+        const text = await response.text();
+        console.log('Confluence response text:', text); // Log the raw response text
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = JSON.parse(text); // Attempt to parse JSON response
+        console.log('Confluence response:', result); // Log the parsed response
     } catch (error) {
         console.error('Error posting to Confluence:', error);
     }
 };
+
 
 // Example endpoint to trigger posting to Confluence
 app.get('/postToConfluence', async (req, res) => {
