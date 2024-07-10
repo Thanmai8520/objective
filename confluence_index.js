@@ -25,34 +25,18 @@ const executeQuery = (query) => {
     return new Promise((resolve, reject) => {
         pool.query(query, (err, results) => {
             if (err) {
-                return reject(err);
+                reject(err);
+            } else {
+                resolve(results);
             }
-            resolve(results);
         });
     });
 };
 
-// GET endpoint to fetch all build details
-app.get('/mae/getBuild', async (req, res) => {
-    const query = 'SELECT * FROM maebuildinfo';
-    try {
-        const results = await executeQuery(query);
-        res.json(results);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Error fetching build details' });
-    }
-});
-
 // Function to post data to Confluence
 const postToConfluence = async (data) => {
-    if (!data || !Array.isArray(data)) {
-        console.error('Invalid data format:', data);
-        return;
-    }
-
     const confluenceUrl = 'https://confluence.barcapint.com/display/~601515269/version+details';
-    const auth = 'Bearer NzY5NjUyNTM3MTQ20p5XYOLIJe+GABLVxIkobKJWpv7y'; // Update with your actual token
+    const auth = 'Bearer NzY5NjUyNTM3MTQ20p5XYOLIJe+GABLVxIkobKJWpv7y'; // Replace with your actual token
     const pageId = '2464689130'; // Replace with your Confluence page ID
     const spaceKey = 'viewspace.action?key=~G01515269'; // Replace with your Confluence space key
 
@@ -108,13 +92,6 @@ const postToConfluence = async (data) => {
 
         const result = await response.json();
         console.log('Confluence response:', result);
-
-        if (response.ok) {
-            console.log('Data posted to Confluence successfully');
-        } else {
-            console.error('Failed to post data to Confluence. Status:', response.status, response.statusText);
-            console.error('Error details:', result);
-        }
     } catch (error) {
         console.error('Error posting to Confluence:', error);
     }
@@ -125,12 +102,8 @@ app.get('/postToConfluence', async (req, res) => {
     const query = 'SELECT * FROM maebuildinfo';
     try {
         const results = await executeQuery(query);
-        if (results && Array.isArray(results) && results.length > 0) {
-            await postToConfluence(results);
-            res.json({ message: 'Data posted to Confluence successfully' });
-        } else {
-            res.status(404).json({ error: 'No build details found to post' });
-        }
+        await postToConfluence(results);
+        res.json({ message: 'Data posted to Confluence successfully' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
