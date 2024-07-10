@@ -1,12 +1,12 @@
-import express from 'express';
-import cors from 'cors';
-import mysql from 'mysql';
-import fetch from 'node-fetch';
+const express = require('express');
+const cors = require('cors');
+const mysql = require('mysql');
+const fetch = require('node-fetch');
 
 const app = express();
 const port = 3000;
 
-app.use(cors()); // middleware
+app.use(cors());
 
 console.log('Server Started..');
 
@@ -31,6 +31,26 @@ const executeQuery = (query) => {
             }
         });
     });
+};
+
+const fetchPageVersion = async (pageId, auth) => {
+    const confluenceUrl = `https://confluence.barcapint.com/rest/api/content/${pageId}`;
+
+    try {
+        const response = await fetch(confluenceUrl, {
+            method: 'GET',
+            headers: {
+                'Authorization': auth,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+        return result.version.number; // Return the current version number
+    } catch (error) {
+        console.error('Error fetching page version:', error);
+        throw error;
+    }
 };
 
 const postToConfluence = async (data) => {
@@ -103,8 +123,17 @@ const postToConfluence = async (data) => {
     }
 };
 
+app.get('/mae/getBuild', async (req, res) => {
+    const query = 'SELECT * FROM maebuildinfo';
+    try {
+        const results = await executeQuery(query);
+        res.json(results);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error fetching build details' });
+    }
+});
 
-// Example endpoint to trigger posting to Confluence
 app.get('/postToConfluence', async (req, res) => {
     const query = 'SELECT * FROM maebuildinfo';
     try {
@@ -117,7 +146,6 @@ app.get('/postToConfluence', async (req, res) => {
     }
 });
 
-// Start server
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });
