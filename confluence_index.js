@@ -33,13 +33,19 @@ const executeQuery = (query) => {
     });
 };
 
-const fetch = require('node-fetch');
-
 const postToConfluence = async (data) => {
     const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
-    const auth = 'Bearer NzY5NjUyNTM3MTQ20p5XYOLIJe+GABLVxIkobKJWpv7y'; // Replace with your actual token
+    const auth = 'Bearer NzY5NjUyNTM3MTQ20p5XYOLIJe+GABLVxIkobKJWpv7y'; // Replace with your Bearer token
     const pageId = '2464689130'; // Replace with your Confluence page ID
-    const spaceKey = 'viewspace.action?key=~G01515269'; // Replace with your Confluence space key
+
+    // Fetch current version number
+    let currentVersion;
+    try {
+        currentVersion = await fetchPageVersion(pageId, auth);
+    } catch (error) {
+        console.error('Failed to fetch current page version:', error);
+        return;
+    }
 
     // Convert the data to Confluence storage format
     let tableRows = data.map(row => `
@@ -53,36 +59,36 @@ const postToConfluence = async (data) => {
             <td>${row.Date_Time}</td>
         </tr>
     `).join('');
-const requestBody = {
-    version: { number: 2 }, // Update the version number for existing pages
-    title: 'Build Information', // Optionally update the title if needed
-    type: 'page',
-    body: {
-        storage: {
-            value: `
-                <h1>Build Information</h1>
-                <table>
-                    <tr>
-                        <th>Application Name</th>
-                        <th>Target Environment</th>
-                        <th>Version</th>
-                        <th>Release</th>
-                        <th>Jira Task ID</th>
-                        <th>Release Notes</th>
-                        <th>Date and Time</th>
-                    </tr>
-                    ${tableRows}
-                </table>
-            `,
-            representation: 'storage'
-        }
-    }
-};
 
+    const requestBody = {
+        version: { number: currentVersion + 1 }, // Increment the current version number
+        title: 'Build Information', // Replace with the title of your Confluence page
+        type: 'page',
+        body: {
+            storage: {
+                value: `
+                    <h1>Build Information</h1>
+                    <table>
+                        <tr>
+                            <th>Application Name</th>
+                            <th>Target Environment</th>
+                            <th>Version</th>
+                            <th>Release</th>
+                            <th>Jira Task ID</th>
+                            <th>Release Notes</th>
+                            <th>Date and Time</th>
+                        </tr>
+                        ${tableRows}
+                    </table>
+                `,
+                representation: 'storage'
+            }
+        }
+    };
 
     try {
         const response = await fetch(`${confluenceUrl}/${pageId}`, {
-            method: 'PUT', // Use 'POST' to create a new page or 'PUT' to update an existing page
+            method: 'PUT',
             headers: {
                 'Authorization': auth,
                 'Content-Type': 'application/json'
@@ -90,15 +96,8 @@ const requestBody = {
             body: JSON.stringify(requestBody)
         });
 
-        const text = await response.text();
-        console.log('Confluence response text:', text); // Log the raw response text
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = JSON.parse(text); // Attempt to parse JSON response
-        console.log('Confluence response:', result); // Log the parsed response
+        const result = await response.json();
+        console.log('Confluence response:', result);
     } catch (error) {
         console.error('Error posting to Confluence:', error);
     }
