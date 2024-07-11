@@ -21,9 +21,19 @@ const pool = mysql.createPool({
 });
 
 const postToConfluence = async (data) => {
+  // Log the type and content of data
+  console.log('Data type:', typeof data);
+  console.log('Data content:', data);
+
+  // Ensure data is an array
   if (!Array.isArray(data)) {
-    console.error('Expected data to be an array, but got:', typeof data, data);
-    throw new Error('Data is not an array');
+    // Try to convert data to an array if it's not one
+    if (data && typeof data === 'object') {
+      data = Object.values(data);
+    } else {
+      console.error('Data is not an array or an object that can be converted to an array:', data);
+      throw new Error('Data is not an array or convertible to an array');
+    }
   }
 
   const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
