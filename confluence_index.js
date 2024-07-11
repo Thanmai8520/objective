@@ -21,6 +21,11 @@ const pool = mysql.createPool({
 });
 
 const postToConfluence = async (data) => {
+  if (!Array.isArray(data)) {
+    console.error('Expected data to be an array, but got:', typeof data, data);
+    throw new Error('Data is not an array');
+  }
+
   const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
   const auth = 'Bearer NzY5NjUyNTM3MTQ20p5XYOLIJe+GABLVxIkobKJWpv7y'; // Replace with your actual token
   const pageId = '2464689130'; // Replace with your Confluence page ID
@@ -64,6 +69,8 @@ const postToConfluence = async (data) => {
     }
   };
 
+  console.log('Posting to Confluence with request body:', requestBody);
+
   try {
     const response = await fetch(`${confluenceUrl}/${pageId}`, {
       method: 'PUT', // Use 'PUT' to update an existing page
@@ -103,15 +110,17 @@ app.get('/postToConfluence', async (req, res) => {
   const apiUrl = 'http://localhost:3000/mae/getBuild/demo-app'; // Replace with your actual API endpoint
 
   try {
+    console.log('Fetching build details from API:', apiUrl);
     const response = await fetch(apiUrl);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const results = await response.json();
+    console.log('Fetched build details:', results);
     await postToConfluence(results);
     res.json({ message: 'Data posted to Confluence successfully' });
   } catch (error) {
-    console.error(error);
+    console.error('Error fetching build details or posting to Confluence:', error);
     res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
   }
 });
