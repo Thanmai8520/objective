@@ -78,7 +78,7 @@ const postToConfluence = async (data) => {
     console.log('Confluence response text:', text); // Log the raw response text
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
     }
 
     const result = JSON.parse(text); // Attempt to parse JSON response
