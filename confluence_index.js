@@ -114,10 +114,13 @@ const postToConfluence = async (data) => {
 
     const result = JSON.parse(text);
     console.log('Confluence response:', result);
+    return result; // Return the result if needed
   } catch (error) {
     console.error('Error posting to Confluence:', error);
+    throw error; // Throw the error to be handled by the caller
   }
 };
+
 
 // Utility function to execute a query and get results
 const executeQuery = (query, callback) => {
