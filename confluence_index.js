@@ -53,12 +53,15 @@ const postToConfluence = async (data) => {
     if (!Array.isArray(data)) {
       // Try to convert data to an array if it's not one
       if (data && typeof data === 'object') {
-        data = Object.values(data);
+        data = [data]; // Wrap the object in an array
       } else {
         console.error('Data is not an array or an object that can be converted to an array:', data);
         throw new Error('Data is not an array or convertible to an array');
       }
     }
+
+    // Log the data being posted
+    console.log('Data being posted to Confluence:', JSON.stringify(data, null, 2));
 
     let tableRows = data.map(row => `
       <tr>
@@ -71,6 +74,9 @@ const postToConfluence = async (data) => {
         <td>${row.Date_Time}</td>
       </tr>
     `).join('');
+
+    // Log the generated table rows
+    console.log('Generated table rows:', tableRows);
 
     const requestBody = {
       version: { number: newVersion },
@@ -121,7 +127,6 @@ const postToConfluence = async (data) => {
   }
 };
 
-
 // Utility function to execute a query and get results
 const executeQuery = (query, callback) => {
   pool.query(query, (err, results) => {
@@ -144,6 +149,10 @@ app.get('/postToConfluence', async (req, res) => {
     }
     const results = await response.json();
     console.log('Fetched build details:', results);
+
+    // Log the fetched data
+    console.log('Fetched build details (logged):', JSON.stringify(results, null, 2));
+    
     await postToConfluence(results);
     res.json({ message: 'Data posted to Confluence successfully' });
   } catch (error) {
