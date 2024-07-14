@@ -1,8 +1,7 @@
 import express from 'express';
 import cors from 'cors';
-import fetch from 'node-fetch';
 import mysql from 'mysql';
-import fs from 'fs';
+import fetch from 'node-fetch';
 
 const app = express();
 const port = 3000;
@@ -11,6 +10,7 @@ app.use(cors()); // Enable CORS
 console.log('Server Started..');
 app.disable('etag');
 
+// MySQL database configuration
 const pool = mysql.createPool({
   host: '28.10.146.81',
   user: 'root',
@@ -20,10 +20,101 @@ const pool = mysql.createPool({
   connectTimeout: 10000 // Increase the connection timeout if needed
 });
 
+// Confluence API configuration
 const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
 const auth = 'Bearer NzY5NjUyNTM3MTQ20p5XYOLIJe+GABLVxIkobKJWpv7y'; // Replace with your actual token
 const pageId = '2464689130'; // Replace with your Confluence page ID
 
+// Utility function to execute MySQL queries
+const executeQuery = (query, params) => {
+  return new Promise((resolve, reject) => {
+    pool.query(query, params, (err, results) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(results);
+      }
+    });
+  });
+};
+
+// GET endpoint to fetch all build details
+app.get('/mae/getBuild', (req, res) => {
+  const query = 'SELECT * FROM maebuildinfo';
+  executeQuery(query)
+    .then(results => {
+      res.json(results);
+    })
+    .catch(err => {
+      console.error('Error fetching build details:', err);
+      res.status(500).json({ error: 'Error fetching build details' });
+    });
+});
+
+// GET endpoint to fetch build details by applicationName
+app.get('/mae/getBuild/:applicationName', (req, res) => {
+  const { applicationName } = req.params;
+  const query = `
+    SELECT *
+    FROM maebuildinfo
+    WHERE ApplicationName = ${mysql.escape(applicationName)}
+  `;
+  
+  executeQuery(query)
+    .then(results => {
+      if (results.length > 0) {
+        res.json(results);
+      } else {
+        res.status(404).json({ message: 'Build details not found for the application name' });
+      }
+    })
+    .catch(err => {
+      console.error('Error fetching build details:', err);
+      res.status(500).json({ error: 'Error fetching build details' });
+    });
+});
+
+// POST endpoint to post build details to Confluence for all TargetEnvironments
+app.get('/postToConfluence/:applicationName', async (req, res) => {
+  const { applicationName } = req.params;
+  const query = `
+    SELECT *
+    FROM maebuildinfo
+    WHERE ApplicationName = ${mysql.escape(applicationName)}
+    ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC
+  `;
+  
+  try {
+    const results = await executeQuery(query);
+    if (results.length > 0) {
+      // Grouping results by TargetEnvironment and selecting latest for each
+      const latestBuildsMap = new Map();
+      results.forEach(build => {
+        const key = build.TargetEnvironment;
+        if (!latestBuildsMap.has(key) || new Date(build.Date_Time) > new Date(latestBuildsMap.get(key).Date_Time)) {
+          latestBuildsMap.set(key, build);
+        }
+      });
+
+      // Posting each build detail to Confluence
+      const promises = [];
+      latestBuildsMap.forEach(async (build) => {
+        promises.push(postToConfluence(build));
+      });
+
+      await Promise.all(promises);
+
+      res.json({ message: 'Data posted to Confluence successfully' });
+    } else {
+      res.status(404).json({ message: 'Build details not found for the application name' });
+    }
+  } catch (err) {
+    console.error('Error fetching build details or posting to Confluence:', err);
+    res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
+  }
+});
+
+// Function to get current Confluence page version
 const getConfluencePageVersion = async () => {
   try {
     const response = await fetch(`${confluenceUrl}/${pageId}?expand=version`, {
@@ -44,43 +135,7 @@ const getConfluencePageVersion = async () => {
   }
 };
 
-const executeQuery = (query, params) => {
-  return new Promise((resolve, reject) => {
-    pool.query(query, params, (err, results) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(results);
-      }
-    });
-  });
-};
-
-app.get('/postToConfluence/:applicationName', async (req, res) => {
-  const { applicationName } = req.params;
-  const query = `
-    SELECT *
-    FROM maebuildinfo
-    WHERE ApplicationName = ${mysql.escape(applicationName)}
-    ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC
-    LIMIT 1
-  `;
-  
-  try {
-    const results = await executeQuery(query);
-    if (results.length > 0) {
-      const dataToPost = results[0];
-      await postToConfluence(dataToPost);
-      res.json({ message: 'Data posted to Confluence successfully' });
-    } else {
-      res.status(404).json({ message: 'Build details not found for the application name' });
-    }
-  } catch (err) {
-    console.error('Error fetching build details or posting to Confluence:', err);
-    res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
-  }
-});
-
+// Function to post build details to Confluence
 const postToConfluence = async (data) => {
   try {
     const currentVersion = await getConfluencePageVersion();
@@ -143,7 +198,7 @@ const postToConfluence = async (data) => {
     console.error('Error posting to Confluence:', error);
     throw error; // Throw the error to be handled by the caller
   }
-};
+});
 
 // Test database connection
 pool.query('SELECT 1', (err, results) => {
