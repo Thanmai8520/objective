@@ -1,111 +1,201 @@
-import React, { useEffect, useState } from 'react';
-import 'bootstrap/dist/css/bootstrap.min.css';
+import express from 'express';
+import cors from 'cors';
+import mysql from 'mysql';
+import fetch from 'node-fetch';
 
-const VersionTable = () => {
-  const [versions, setVersions] = useState([]);
-  const [filteredVersions, setFilteredVersions] = useState([]);
-  const [selectedApplication, setSelectedApplication] = useState('');
-  const [applications, setApplications] = useState([]);
-  const [error, setError] = useState(null);
+const app = express();
+const port = 3000;
 
-  useEffect(() => {
-    fetch('http://localhost:3000/mae/getBuild')
-      .then(response => response.json())
-      .then(data => {
-        const latestVersions = getLatestVersions(data);
-        setVersions(latestVersions);
-        setFilteredVersions(latestVersions);
-        const uniqueApps = [...new Set(latestVersions.map(item => item.ApplicationName))];
-        setApplications(uniqueApps);
-      })
-      .catch(error => {
-        console.error('Error fetching version details:', error);
-        setError(error.message);
-      });
-  }, []);
+app.use(cors()); // Enable CORS
+console.log('Server Started..');
+app.disable('etag');
 
-  const getLatestVersions = (data) => {
-    const latestVersionsMap = new Map();
+// MySQL database configuration
+const pool = mysql.createPool({
+  host: '28.10.146.81',
+  user: 'root',
+  password: 'T@bleau',
+  database: 'mortgages_sv',
+  connectionLimit: 10,
+  connectTimeout: 10000 // Increase the connection timeout if needed
+});
 
-    data.forEach(item => {
-      const key = `${item.ApplicationName}-${item.TargetEnvironment}`;
-      if (!latestVersionsMap.has(key) || new Date(item.Date_Time) > new Date(latestVersionsMap.get(key).Date_Time)) {
-        latestVersionsMap.set(key, item);
+// Confluence API configuration
+const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
+const auth = 'Bearer NzY5NjUyNTM3MTQ20p5XYOLIJe+GABLVxIkobKJWpv7y'; // Replace with your actual token
+const pageId = '2464689130'; // Replace with your Confluence page ID
+
+// Utility function to execute MySQL queries
+const executeQuery = (query, params) => {
+  return new Promise((resolve, reject) => {
+    pool.query(query, params, (err, results) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(results);
+      }
+    });
+  });
+};
+
+// GET endpoint to fetch all build details
+app.get('/mae/getBuild', (req, res) => {
+  const query = 'SELECT * FROM maebuildinfo';
+  executeQuery(query)
+    .then(results => {
+      res.json(results);
+    })
+    .catch(err => {
+      console.error('Error fetching build details:', err);
+      res.status(500).json({ error: 'Error fetching build details' });
+    });
+});
+
+// GET endpoint to fetch build details by applicationName
+app.get('/mae/getBuild/:applicationName', (req, res) => {
+  const { applicationName } = req.params;
+  const query = `
+    SELECT *
+    FROM maebuildinfo
+    WHERE ApplicationName = ${mysql.escape(applicationName)}
+  `;
+  
+  executeQuery(query)
+    .then(results => {
+      if (results.length > 0) {
+        res.json(results);
+      } else {
+        res.status(404).json({ message: 'Build details not found for the application name' });
+      }
+    })
+    .catch(err => {
+      console.error('Error fetching build details:', err);
+      res.status(500).json({ error: 'Error fetching build details' });
+    });
+});
+
+// POST endpoint to post build details to Confluence
+app.get('/postToConfluence/:applicationName', async (req, res) => {
+  const { applicationName } = req.params;
+  const query = `
+    SELECT *
+    FROM maebuildinfo
+    WHERE ApplicationName = ${mysql.escape(applicationName)}
+    ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC
+    LIMIT 1
+  `;
+  
+  try {
+    const results = await executeQuery(query);
+    if (results.length > 0) {
+      const dataToPost = results[0];
+      await postToConfluence(dataToPost);
+      res.json({ message: 'Data posted to Confluence successfully' });
+    } else {
+      res.status(404).json({ message: 'Build details not found for the application name' });
+    }
+  } catch (err) {
+    console.error('Error fetching build details or posting to Confluence:', err);
+    res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
+  }
+});
+
+// Function to get current Confluence page version
+const getConfluencePageVersion = async () => {
+  try {
+    const response = await fetch(`${confluenceUrl}/${pageId}?expand=version`, {
+      headers: {
+        'Authorization': auth
       }
     });
 
-    return Array.from(latestVersionsMap.values()).sort((a, b) => new Date(b.Date_Time) - new Date(a.Date_Time));
-  };
-
-  const handleApplicationChange = (event) => {
-    const applicationName = event.target.value;
-    setSelectedApplication(applicationName);
-
-    if (applicationName === '') {
-      setFilteredVersions(versions);
-    } else {
-      const filteredData = versions.filter(version => version.ApplicationName === applicationName);
-      setFilteredVersions(filteredData);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
 
-  if (error) {
-    return <div className="alert alert-danger" role="alert">Error: {error}</div>;
+    const result = await response.json();
+    return result.version.number;
+  } catch (error) {
+    console.error('Error fetching Confluence page version:', error);
+    throw error;
   }
-
-  return (
-    <div className="container">
-      <h2 className="my-4">Version Details</h2>
-      <div className="form-group">
-        <label htmlFor="applicationSelect">Select Application:</label>
-        <select
-          id="applicationSelect"
-          className="form-control"
-          value={selectedApplication}
-          onChange={handleApplicationChange}
-        >
-          <option value="">All Applications</option>
-          {applications.map((app, index) => (
-            <option key={index} value={app}>{app}</option>
-          ))}
-        </select>
-      </div>
-      <div className="table-responsive">
-        <table className="table table-striped mt-4">
-          <thead className="thead-dark">
-            <tr>
-              <th>Application Name</th>
-              <th>Target Environment</th>
-              <th>Version</th>
-              <th>Release</th>
-              <th>Jira Task ID</th>
-              <th>Release Notes</th>
-              <th>Date and Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredVersions.length > 0 ? (
-              filteredVersions.map((version, index) => (
-                <tr key={index}>
-                  <td>{version.ApplicationName}</td>
-                  <td>{version.TargetEnvironment}</td>
-                  <td>{version.Version}</td>
-                  <td>{version.Release}</td>
-                  <td><a href={version.JiraTaskId} target="_blank" rel="noopener noreferrer">{version.JiraTaskId}</a></td>
-                  <td><a href={version.ReleaseNotes} target="_blank" rel="noopener noreferrer">{version.ReleaseNotes}</a></td>
-                  <td>{version.Date_Time}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="7">No data available</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
 };
 
-export default VersionTable;
+// Function to post build details to Confluence
+const postToConfluence = async (data) => {
+  try {
+    const currentVersion = await getConfluencePageVersion();
+    const newVersion = currentVersion + 1;
+
+    // Construct the request body for Confluence
+    const requestBody = {
+      version: { number: newVersion },
+      title: 'Build Information',
+      type: 'page',
+      body: {
+        storage: {
+          value: `
+            <h1>Build Information</h1>
+            <table>
+              <tr>
+                <th>Application Name</th>
+                <th>Target Environment</th>
+                <th>Version</th>
+                <th>Release</th>
+                <th>Jira Task ID</th>
+                <th>Release Notes</th>
+                <th>Date and Time</th>
+              </tr>
+              <tr>
+                <td>${data.ApplicationName || ''}</td>
+                <td>${data.TargetEnvironment || ''}</td>
+                <td>${data.Version || ''}</td>
+                <td>${data.Release || ''}</td>
+                <td>${data.JiraTaskId || ''}</td>
+                <td>${data.ReleaseNotes || ''}</td>
+                <td>${data.Date_Time || ''}</td>
+              </tr>
+            </table>
+          `,
+          representation: 'storage'
+        }
+      }
+    };
+
+    // Post the data to Confluence
+    const response = await fetch(`${confluenceUrl}/${pageId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': auth,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
+    }
+
+    const result = JSON.parse(text);
+    console.log('Confluence response:', result);
+    return result; // Return the result if needed
+  } catch (error) {
+    console.error('Error posting to Confluence:', error);
+    throw error; // Throw the error to be handled by the caller
+  }
+});
+
+// Test database connection
+pool.query('SELECT 1', (err, results) => {
+  if (err) {
+    console.error('Error connecting to the database:', err);
+  } else {
+    console.log('Connected to the database');
+  }
+});
+
+// Start server
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
