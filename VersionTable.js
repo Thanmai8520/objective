@@ -33,14 +33,25 @@ const VersionTable = () => {
 
     data.forEach(item => {
       const key = `${item.ApplicationName}-${item.TargetEnvironment}`;
-      if (!latestVersionsMap.has(key) || new Date(item.Date_Time) > new Date(latestVersionsMap.get(key).Date_Time)) {
-        latestVersionsMap.set(key, item);
+      const itemDateTime = convertDate(item.Date_Time); // Convert date format
+      if (!latestVersionsMap.has(key) || itemDateTime > convertDate(latestVersionsMap.get(key).Date_Time)) {
+        latestVersionsMap.set(key, { ...item, Date_Time: item.Date_Time }); // Store original date format
       }
     });
 
     // Convert map values to an array and sort by Date_Time descending
-    const sortedVersions = Array.from(latestVersionsMap.values()).sort((a, b) => new Date(b.Date_Time) - new Date(a.Date_Time));
+    const sortedVersions = Array.from(latestVersionsMap.values()).sort((a, b) => {
+      return convertDate(b.Date_Time) - convertDate(a.Date_Time);
+    });
     return sortedVersions;
+  };
+
+  const convertDate = (dateString) => {
+    // Assuming date format is "DD/MM/YYYY HH:mm:ss"
+    const [day, month, yearAndTime] = dateString.split('/');
+    const [year, time] = yearAndTime.split(' ');
+    const [hour, minute, second] = time.split(':');
+    return new Date(year, month - 1, day, hour, minute, second);
   };
 
   const handleApplicationChange = (event) => {
