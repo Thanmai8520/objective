@@ -51,31 +51,8 @@ app.get('/mae/getBuild', (req, res) => {
     });
 });
 
-// GET endpoint to fetch build details by applicationName
-app.get('/mae/getBuild/:applicationName', (req, res) => {
-  const { applicationName } = req.params;
-  const query = `
-    SELECT *
-    FROM maebuildinfo
-    WHERE ApplicationName = ${mysql.escape(applicationName)}
-  `;
-  
-  executeQuery(query)
-    .then(results => {
-      if (results.length > 0) {
-        res.json(results);
-      } else {
-        res.status(404).json({ message: 'Build details not found for the application name' });
-      }
-    })
-    .catch(err => {
-      console.error('Error fetching build details:', err);
-      res.status(500).json({ error: 'Error fetching build details' });
-    });
-});
-
 // POST endpoint to post build details to Confluence for all TargetEnvironments
-app.get('/postToConfluence/:applicationName', async (req, res) => {
+app.post('/mae/postToConfluence/:applicationName', async (req, res) => {
   const { applicationName } = req.params;
   const query = `
     SELECT *
