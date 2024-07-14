@@ -48,10 +48,11 @@ const VersionTable = () => {
 
   const convertDate = (dateString) => {
     // Assuming date format is "DD/MM/YYYY HH:mm:ss"
-    const [day, month, yearAndTime] = dateString.split('/');
-    const [year, time] = yearAndTime.split(' ');
-    const [hour, minute, second] = time.split(':');
-    return new Date(year, month - 1, day, hour, minute, second);
+    const parts = dateString.split(' ');
+    const dateParts = parts[0].split('/');
+    const timeParts = parts[1].split(':');
+    const formattedDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0], timeParts[0], timeParts[1], timeParts[2]);
+    return formattedDate.getTime(); // Return milliseconds for comparison
   };
 
   const handleApplicationChange = (event) => {
