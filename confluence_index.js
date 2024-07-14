@@ -52,43 +52,28 @@ app.get('/mae/getBuild', (req, res) => {
 });
 
 // POST endpoint to post build details to Confluence for all TargetEnvironments
-app.post('/mae/postToConfluence/:applicationName', async (req, res) => {
+// GET endpoint to fetch distinct TargetEnvironments for a specific ApplicationName
+app.get('/mae/getTargetEnvironments/:applicationName', (req, res) => {
   const { applicationName } = req.params;
   const query = `
-    SELECT *
+    SELECT DISTINCT TargetEnvironment
     FROM maebuildinfo
     WHERE ApplicationName = ${mysql.escape(applicationName)}
-    ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC
   `;
   
-  try {
-    const results = await executeQuery(query);
-    if (results.length > 0) {
-      // Grouping results by TargetEnvironment and selecting latest for each
-      const latestBuildsMap = new Map();
-      results.forEach(build => {
-        const key = build.TargetEnvironment;
-        if (!latestBuildsMap.has(key) || new Date(build.Date_Time) > new Date(latestBuildsMap.get(key).Date_Time)) {
-          latestBuildsMap.set(key, build);
-        }
-      });
-
-      // Posting each build detail to Confluence
-      const promises = [];
-      latestBuildsMap.forEach(async (build) => {
-        promises.push(postToConfluence(build));
-      });
-
-      await Promise.all(promises);
-
-      res.json({ message: 'Data posted to Confluence successfully' });
-    } else {
-      res.status(404).json({ message: 'Build details not found for the application name' });
-    }
-  } catch (err) {
-    console.error('Error fetching build details or posting to Confluence:', err);
-    res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
-  }
+  executeQuery(query)
+    .then(results => {
+      if (results.length > 0) {
+        const environments = results.map(result => result.TargetEnvironment);
+        res.json(environments);
+      } else {
+        res.status(404).json({ message: 'Target environments not found for the application name' });
+      }
+    })
+    .catch(err => {
+      console.error('Error fetching target environments:', err);
+      res.status(500).json({ error: 'Error fetching target environments' });
+    });
 });
 
 // Function to get current Confluence page version
