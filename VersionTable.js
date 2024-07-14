@@ -74,7 +74,7 @@ app.get('/mae/getBuild/:applicationName', (req, res) => {
     });
 });
 
-// POST endpoint to post build details to Confluence
+// POST endpoint to post build details to Confluence for all TargetEnvironments
 app.get('/postToConfluence/:applicationName', async (req, res) => {
   const { applicationName } = req.params;
   const query = `
@@ -82,14 +82,33 @@ app.get('/postToConfluence/:applicationName', async (req, res) => {
     FROM maebuildinfo
     WHERE ApplicationName = ${mysql.escape(applicationName)}
     ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC
-    LIMIT 1
   `;
   
   try {
     const results = await executeQuery(query);
     if (results.length > 0) {
-      const dataToPost = results[0];
-      await postToConfluence(dataToPost);
+      const dataToPost = [];
+
+      // Grouping results by TargetEnvironment and selecting latest for each
+      const latestBuildsMap = new Map();
+      results.forEach(build => {
+        const key = build.TargetEnvironment;
+        if (!latestBuildsMap.has(key) || new Date(build.Date_Time) > new Date(latestBuildsMap.get(key).Date_Time)) {
+          latestBuildsMap.set(key, build);
+        }
+      });
+
+      latestBuildsMap.forEach(build => {
+        dataToPost.push(build);
+      });
+
+      // Posting each build detail to Confluence
+      const promises = dataToPost.map(async (data) => {
+        await postToConfluence(data);
+      });
+
+      await Promise.all(promises);
+
       res.json({ message: 'Data posted to Confluence successfully' });
     } else {
       res.status(404).json({ message: 'Build details not found for the application name' });
