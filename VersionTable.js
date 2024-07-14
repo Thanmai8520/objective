@@ -9,16 +9,12 @@ const VersionTable = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetchVersions();
-  }, []);
-
-  const fetchVersions = () => {
     fetch('http://localhost:3000/mae/getBuild')
       .then(response => response.json())
       .then(data => {
         const latestVersions = getLatestVersions(data);
         setVersions(latestVersions);
-        setFilteredVersions(latestVersions); // Initially display all versions
+        setFilteredVersions(latestVersions);
         const uniqueApps = [...new Set(latestVersions.map(item => item.ApplicationName))];
         setApplications(uniqueApps);
       })
@@ -26,39 +22,39 @@ const VersionTable = () => {
         console.error('Error fetching version details:', error);
         setError(error.message);
       });
-  };
+  }, []);
 
   const getLatestVersions = (data) => {
     const latestVersionsMap = new Map();
 
     data.forEach(item => {
       const key = `${item.ApplicationName}-${item.TargetEnvironment}`;
-      const itemDateTime = convertDate(item.Date_Time); // Convert date format
-      if (!latestVersionsMap.has(key) || itemDateTime > convertDate(latestVersionsMap.get(key).Date_Time)) {
-        latestVersionsMap.set(key, { ...item, Date_Time: item.Date_Time }); // Store original date format
+      const existingItem = latestVersionsMap.get(key);
+
+      if (!existingItem || convertDate(item.Date_Time) > convertDate(existingItem.Date_Time)) {
+        latestVersionsMap.set(key, item);
       }
     });
 
-    // Convert map values to an array and sort by Date_Time descending
-    const sortedVersions = Array.from(latestVersionsMap.values()).sort((a, b) => {
-      return convertDate(b.Date_Time) - convertDate(a.Date_Time);
-    });
-    return sortedVersions;
+    return Array.from(latestVersionsMap.values()).sort((a, b) => convertDate(b.Date_Time) - convertDate(a.Date_Time));
   };
 
   const convertDate = (dateString) => {
-    if (!dateString) {
-      return 0; // Handle undefined or null dateString
+    if (!dateString || typeof dateString !== 'string') {
+      console.error('Invalid Date_Time format:', dateString);
+      return 0; // Handle undefined, null, or invalid format
     }
 
-    // Assuming date format is "DD/MM/YYYY HH:mm:ss"
     const parts = dateString.split(' ');
     if (parts.length !== 2) {
+      console.error('Invalid Date_Time format:', dateString);
       return 0; // Handle unexpected format
     }
+
     const dateParts = parts[0].split('/');
     const timeParts = parts[1].split(':');
     if (dateParts.length !== 3 || timeParts.length !== 3) {
+      console.error('Invalid Date_Time format:', dateString);
       return 0; // Handle unexpected format
     }
 
@@ -71,7 +67,7 @@ const VersionTable = () => {
     setSelectedApplication(applicationName);
 
     if (applicationName === '') {
-      setFilteredVersions(versions); // Show all versions if no application is selected
+      setFilteredVersions(versions);
     } else {
       const filteredData = versions.filter(version => version.ApplicationName === applicationName);
       setFilteredVersions(filteredData);
@@ -138,4 +134,3 @@ const VersionTable = () => {
 };
 
 export default VersionTable;
-
