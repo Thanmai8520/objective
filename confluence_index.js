@@ -65,13 +65,13 @@ const postToConfluence = async (data) => {
 
     let tableRows = data.map(row => `
       <tr>
-        <td>${row.ApplicationName}</td>
-        <td>${row.TargetEnvironment}</td>
-        <td>${row.Version}</td>
-        <td>${row.Release}</td>
-        <td>${row.JiraTaskId}</td>
-        <td>${row.ReleaseNotes}</td>
-        <td>${row.Date_Time}</td>
+        <td>${row.ApplicationName || ''}</td>
+        <td>${row.TargetEnvironment || ''}</td>
+        <td>${row.Version || ''}</td>
+        <td>${row.Release || ''}</td>
+        <td>${row.JiraTaskId || ''}</td>
+        <td>${row.ReleaseNotes || ''}</td>
+        <td>${row.Date_Time || ''}</td>
       </tr>
     `).join('');
 
