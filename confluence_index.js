@@ -38,44 +38,6 @@ const executeQuery = (query, params) => {
   });
 };
 
-// GET endpoint to fetch all build details
-app.get('/mae/getBuild', (req, res) => {
-  const query = 'SELECT * FROM maebuildinfo';
-  executeQuery(query)
-    .then(results => {
-      res.json(results);
-    })
-    .catch(err => {
-      console.error('Error fetching build details:', err);
-      res.status(500).json({ error: 'Error fetching build details' });
-    });
-});
-
-// POST endpoint to post build details to Confluence for all TargetEnvironments
-// GET endpoint to fetch distinct TargetEnvironments for a specific ApplicationName
-app.get('/mae/getTargetEnvironments/:applicationName', (req, res) => {
-  const { applicationName } = req.params;
-  const query = `
-    SELECT DISTINCT TargetEnvironment
-    FROM maebuildinfo
-    WHERE ApplicationName = ${mysql.escape(applicationName)}
-  `;
-  
-  executeQuery(query)
-    .then(results => {
-      if (results.length > 0) {
-        const environments = results.map(result => result.TargetEnvironment);
-        res.json(environments);
-      } else {
-        res.status(404).json({ message: 'Target environments not found for the application name' });
-      }
-    })
-    .catch(err => {
-      console.error('Error fetching target environments:', err);
-      res.status(500).json({ error: 'Error fetching target environments' });
-    });
-});
-
 // Function to get current Confluence page version
 const getConfluencePageVersion = async () => {
   try {
@@ -96,6 +58,46 @@ const getConfluencePageVersion = async () => {
     throw error;
   }
 };
+
+// POST endpoint to post build details to Confluence for all TargetEnvironments
+app.post('/mae/postToConfluence/:applicationName', async (req, res) => {
+  const { applicationName } = req.params;
+  const query = `
+    SELECT *
+    FROM maebuildinfo
+    WHERE ApplicationName = ${mysql.escape(applicationName)}
+    ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC
+  `;
+  
+  try {
+    const results = await executeQuery(query);
+    if (results.length > 0) {
+      // Grouping results by TargetEnvironment and selecting latest for each
+      const latestBuildsMap = new Map();
+      results.forEach(build => {
+        const key = build.TargetEnvironment;
+        if (!latestBuildsMap.has(key) || new Date(build.Date_Time) > new Date(latestBuildsMap.get(key).Date_Time)) {
+          latestBuildsMap.set(key, build);
+        }
+      });
+
+      // Posting each build detail to Confluence
+      const promises = [];
+      latestBuildsMap.forEach(async (build) => {
+        promises.push(postToConfluence(build));
+      });
+
+      await Promise.all(promises);
+
+      res.json({ message: 'Data posted to Confluence successfully' });
+    } else {
+      res.status(404).json({ message: 'Build details not found for the application name' });
+    }
+  } catch (err) {
+    console.error('Error fetching build details or posting to Confluence:', err);
+    res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
+  }
+});
 
 // Function to post build details to Confluence
 const postToConfluence = async (data) => {
@@ -160,7 +162,7 @@ const postToConfluence = async (data) => {
     console.error('Error posting to Confluence:', error);
     throw error; // Throw the error to be handled by the caller
   }
-});
+};
 
 // Test database connection
 pool.query('SELECT 1', (err, results) => {
