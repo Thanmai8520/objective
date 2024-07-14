@@ -47,10 +47,21 @@ const VersionTable = () => {
   };
 
   const convertDate = (dateString) => {
+    if (!dateString) {
+      return 0; // Handle undefined or null dateString
+    }
+
     // Assuming date format is "DD/MM/YYYY HH:mm:ss"
     const parts = dateString.split(' ');
+    if (parts.length !== 2) {
+      return 0; // Handle unexpected format
+    }
     const dateParts = parts[0].split('/');
     const timeParts = parts[1].split(':');
+    if (dateParts.length !== 3 || timeParts.length !== 3) {
+      return 0; // Handle unexpected format
+    }
+
     const formattedDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0], timeParts[0], timeParts[1], timeParts[2]);
     return formattedDate.getTime(); // Return milliseconds for comparison
   };
