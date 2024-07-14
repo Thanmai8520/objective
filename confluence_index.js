@@ -17,7 +17,7 @@ const pool = mysql.createPool({
   password: 'T@bleau',
   database: 'mortgages_sv',
   connectionLimit: 10,
-  connectTimeout: 10000 // Increase the connection timeout
+  connectTimeout: 10000 // Increase the connection timeout if needed
 });
 
 const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
@@ -44,40 +44,49 @@ const getConfluencePageVersion = async () => {
   }
 };
 
+const executeQuery = (query, params) => {
+  return new Promise((resolve, reject) => {
+    pool.query(query, params, (err, results) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(results);
+      }
+    });
+  });
+};
+
+app.get('/postToConfluence/:applicationName', async (req, res) => {
+  const { applicationName } = req.params;
+  const query = `
+    SELECT *
+    FROM maebuildinfo
+    WHERE ApplicationName = ${mysql.escape(applicationName)}
+    ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC
+    LIMIT 1
+  `;
+  
+  try {
+    const results = await executeQuery(query);
+    if (results.length > 0) {
+      const dataToPost = results[0];
+      await postToConfluence(dataToPost);
+      res.json({ message: 'Data posted to Confluence successfully' });
+    } else {
+      res.status(404).json({ message: 'Build details not found for the application name' });
+    }
+  } catch (err) {
+    console.error('Error fetching build details or posting to Confluence:', err);
+    res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
+  }
+});
+
 const postToConfluence = async (data) => {
   try {
     const currentVersion = await getConfluencePageVersion();
     const newVersion = currentVersion + 1;
 
-    // Ensure data is an array
-    if (!Array.isArray(data)) {
-      // Try to convert data to an array if it's not one
-      if (data && typeof data === 'object') {
-        data = [data]; // Wrap the object in an array
-      } else {
-        console.error('Data is not an array or an object that can be converted to an array:', data);
-        throw new Error('Data is not an array or convertible to an array');
-      }
-    }
-
-    // Log the data being posted
-    console.log('Data being posted to Confluence:', JSON.stringify(data, null, 2));
-
-    let tableRows = data.map(row => `
-      <tr>
-        <td>${row.ApplicationName || ''}</td>
-        <td>${row.TargetEnvironment || ''}</td>
-        <td>${row.Version || ''}</td>
-        <td>${row.Release || ''}</td>
-        <td>${row.JiraTaskId || ''}</td>
-        <td>${row.ReleaseNotes || ''}</td>
-        <td>${row.Date_Time || ''}</td>
-      </tr>
-    `).join('');
-
-    // Log the generated table rows
-    console.log('Generated table rows:', tableRows);
-
+    // Construct the request body for Confluence
     const requestBody = {
       version: { number: newVersion },
       title: 'Build Information',
@@ -96,7 +105,15 @@ const postToConfluence = async (data) => {
                 <th>Release Notes</th>
                 <th>Date and Time</th>
               </tr>
-              ${tableRows}
+              <tr>
+                <td>${data.ApplicationName || ''}</td>
+                <td>${data.TargetEnvironment || ''}</td>
+                <td>${data.Version || ''}</td>
+                <td>${data.Release || ''}</td>
+                <td>${data.JiraTaskId || ''}</td>
+                <td>${data.ReleaseNotes || ''}</td>
+                <td>${data.Date_Time || ''}</td>
+              </tr>
             </table>
           `,
           representation: 'storage'
@@ -104,6 +121,7 @@ const postToConfluence = async (data) => {
       }
     };
 
+    // Post the data to Confluence
     const response = await fetch(`${confluenceUrl}/${pageId}`, {
       method: 'PUT',
       headers: {
@@ -126,99 +144,6 @@ const postToConfluence = async (data) => {
     throw error; // Throw the error to be handled by the caller
   }
 };
-
-// Utility function to execute a query and get results
-const executeQuery = (query, callback) => {
-  pool.query(query, (err, results) => {
-    if (err) {
-      return callback(err, null);
-    }
-    callback(null, results);
-  });
-};
-
-// Example endpoint to fetch data from /mae/getBuild and post to Confluence
-app.get('/postToConfluence', async (req, res) => {
-  const apiUrl = 'http://localhost:3000/mae/getBuild/demo-app';
-
-  try {
-    console.log('Fetching build details from API:', apiUrl);
-    const response = await fetch(apiUrl);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const results = await response.json();
-    console.log('Fetched build details:', results);
-
-    // Log the fetched data
-    console.log('Fetched build details (logged):', JSON.stringify(results, null, 2));
-    
-    await postToConfluence(results);
-    res.json({ message: 'Data posted to Confluence successfully' });
-  } catch (error) {
-    console.error('Error fetching build details or posting to Confluence:', error);
-    res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
-  }
-});
-
-app.get('/refreshVSfile', (req, res) => {
-  try {
-    pool.query('SELECT * FROM vs_switchs', function (err, results) {
-      if (err) {
-        return res.status(500).send([]);
-      }
-      let data = JSON.stringify(results);
-      fs.writeFile('vsflags.json', data, function (err) {
-        if (err) {
-          return res.status(500).send([]);
-        }
-        res.send({ "VSFile": "JSON file is updated" });
-      });
-    });
-  } catch (error) {
-    res.status(500).send([]);
-  }
-});
-
-app.get('/getvsflags/:envname', (req, res) => {
-  let env = req.params.envname;
-  try {
-    const vsfile = fs.readFileSync('./vsflags.json', 'utf8');
-    const jsonData = JSON.parse(vsfile).filter(x => x.Env_flag === env);
-    res.send(jsonData);
-  } catch (err) {
-    res.status(500).send([]);
-  }
-});
-
-// GET endpoint to fetch all build details
-app.get('/mae/getBuild', (req, res) => {
-  const query = 'SELECT * FROM maebuildinfo';
-  executeQuery(query, (err, results) => {
-    if (err) {
-      res.status(500).json({ error: 'Error fetching build details' });
-    } else {
-      res.json(results);
-    }
-  });
-});
-
-// GET endpoint to fetch build details by applicationName
-app.get('/mae/getBuild/:applicationName', (req, res) => {
-  const { applicationName } = req.params;
-  const query = `SELECT * FROM maebuildinfo WHERE ApplicationName = ${mysql.escape(applicationName)}`;
-  executeQuery(query, (err, results) => {
-    if (err) {
-      res.status(500).json({ error: 'Error fetching build details' });
-    } else {
-      if (results.length > 0) {
-        res.json(results);
-      } else {
-        res.status(404).json({ message: 'Build details not found for the application name' });
-      }
-    }
-  });
-});
 
 // Test database connection
 pool.query('SELECT 1', (err, results) => {
