@@ -84,7 +84,12 @@ app.post('/mae/postToConfluence/:applicationName', async (req, res) => {
       // Posting each build detail to Confluence
       const promises = [];
       latestBuildsMap.forEach(async (build) => {
-        promises.push(postToConfluence(build));
+        try {
+          const result = await postToConfluence(build);
+          promises.push(result);
+        } catch (error) {
+          console.error('Error posting build detail to Confluence:', error);
+        }
       });
 
       await Promise.all(promises);
@@ -177,3 +182,4 @@ pool.query('SELECT 1', (err, results) => {
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
+
