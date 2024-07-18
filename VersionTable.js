@@ -28,7 +28,7 @@ const VersionTable = () => {
     const latestVersionsMap = new Map();
 
     data.forEach(item => {
-      const key = `${item.ApplicationName}-${item.TargetEnvironment}`;
+      const key = item.ApplicationName;
       const existingItem = latestVersionsMap.get(key);
 
       if (!existingItem || convertDate(item.Date_Time) > convertDate(existingItem.Date_Time)) {
@@ -101,8 +101,11 @@ const VersionTable = () => {
           <thead className="thead-dark">
             <tr>
               <th>Application Name</th>
-              <th>Target Environment</th>
-              <th>Version</th>
+              <th>CIT Version</th>
+              <th>SIT Version</th>
+              <th>OAT</th>
+              <th>VPT</th>
+              <th>Prod Version</th>
               <th>Release</th>
               <th>Jira Task ID</th>
               <th>Release Notes</th>
@@ -114,8 +117,11 @@ const VersionTable = () => {
               filteredVersions.map((version, index) => (
                 <tr key={index}>
                   <td>{version.ApplicationName}</td>
-                  <td>{version.TargetEnvironment}</td>
-                  <td>{version.Version}</td>
+                  <td>{version.CIT_Version}</td>
+                  <td>{version.SIT_Version}</td>
+                  <td>{version.OAT}</td>
+                  <td>{version.VPT}</td>
+                  <td>{version.Prod_Version}</td>
                   <td>{version.Release}</td>
                   <td><a href={version.JiraTaskId} target="_blank" rel="noopener noreferrer">{version.JiraTaskId}</a></td>
                   <td><a href={version.ReleaseNotes} target="_blank" rel="noopener noreferrer">{version.ReleaseNotes}</a></td>
@@ -124,7 +130,7 @@ const VersionTable = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="7">No data available</td>
+                <td colSpan="10">No data available</td>
               </tr>
             )}
           </tbody>
