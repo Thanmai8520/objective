@@ -26,6 +26,7 @@ const executeQuery = (query, params) => {
     return new Promise((resolve, reject) => {
         pool.query(query, params, (err, results) => {
             if (err) {
+                console.error('Database query error:', err); // Detailed error logging
                 reject(err);
             } else {
                 resolve(results);
@@ -128,10 +129,7 @@ const postToConfluence = async (data) => {
         const newVersion = currentVersion + 1;
 
         // Fetch the current content
-        const currentContent = await fetchPageContent();
-
-        // Define a unique table identifier
-        const tableId = 'build-information-table';
+        const currentContent = await fetchPageContent(); // Use the updated fetchPageContent function
 
         // Locate the "Version Control" heading using a flexible approach
         const versionControlHeadingRegex = /<h[1-6][^>]*>\s*Version Control\s*<\/h[1-6]>/i;
@@ -143,37 +141,31 @@ const postToConfluence = async (data) => {
 
         const headingIndex = match.index + match[0].length;
 
-        // Define the new table HTML
-        const newTableHtml = `
-            <table id="${tableId}">
-                <tr>
-                    <th>Application Name</th>
-                    <th>Target Environment</th>
-                    <th>Version</th>
-                    <th>Release</th>
-                    <th>Jira Task ID</th>
-                    <th>Release Notes</th>
-                    <th>Date and Time</th>
-                </tr>
-                ${data.map(item => 
-                    `<tr>
-                        <td>${item.ApplicationName || ''}</td>
-                        <td>${item.TargetEnvironment || ''}</td>
-                        <td>${item.Version || ''}</td>
-                        <td>${item.Release || ''}</td>
-                        <td>${item.JiraTaskId || ''}</td>
-                        <td>${item.ReleaseNotes || ''}</td>
-                        <td>${item.Date_Time || ''}</td>
-                    </tr>`
-                ).join('')}
-            </table>`;
-
-        // Replace the existing table with the new table
-        const tableRegex = new RegExp(`<table id="${tableId}">.*?</table>`, 's');
-        const updatedContent = currentContent.replace(tableRegex, newTableHtml);
-
-        // If the table does not exist, append it
-        const finalContent = updatedContent.includes(newTableHtml) ? updatedContent : `${currentContent.slice(0, headingIndex)}${newTableHtml}${currentContent.slice(headingIndex)}`;
+        // Insert the table below the "Version Control" heading
+        const newContent = `${currentContent.slice(0, headingIndex)}
+        <table>
+            <tr>
+                <th>Application Name</th>
+                <th>Target Environment</th>
+                <th>Version</th>
+                <th>Release</th>
+                <th>Jira Task ID</th>
+                <th>Release Notes</th>
+                <th>Date and Time</th>
+            </tr>
+            ${data.map(item => 
+                `<tr>
+                    <td>${item.ApplicationName || ''}</td>
+                    <td>${item.TargetEnvironment || ''}</td>
+                    <td>${item.Version || ''}</td>
+                    <td>${item.Release || ''}</td>
+                    <td>${item.JiraTaskId || ''}</td>
+                    <td>${item.ReleaseNotes || ''}</td>
+                    <td>${item.Date_Time || ''}</td>
+                </tr>`
+            ).join('')}
+        </table>
+        ${currentContent.slice(headingIndex)}`;
 
         // Construct the request body for Confluence
         const requestBody = {
@@ -182,7 +174,7 @@ const postToConfluence = async (data) => {
             type: 'page',
             body: {
                 storage: {
-                    value: finalContent,
+                    value: newContent,
                     representation: 'storage'
                 }
             }
@@ -229,7 +221,7 @@ app.get('/postToConfluence', async (req, res) => {
         }
     } catch (err) {
         console.error('Error fetching build details or posting to Confluence:', err);
-        res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
+        res.status(500).json({ error: 'Error fetching build details or posting to Confluence', details: err.message });
     }
 });
 
@@ -237,7 +229,10 @@ app.get('/mae/getBuild', (req, res) => {
     const query = 'SELECT * FROM maebuildinfo';
     executeQuery(query)
         .then(results => res.json(results))
-        .catch(err => res.status(500).json({ error: 'Error fetching build details' }));
+        .catch(err => {
+            console.error('Error fetching build details:', err);
+            res.status(500).json({ error: 'Error fetching build details', details: err.message });
+        });
 });
 
 app.get('/mae/getBuild/:applicationName', (req, res) => {
@@ -253,7 +248,7 @@ app.get('/mae/getBuild/:applicationName', (req, res) => {
         })
         .catch(err => {
             console.error('Error fetching build details:', err);
-            res.status(500).json({ error: 'Error fetching build details' });
+            res.status(500).json({ error: 'Error fetching build details', details: err.message });
         });
 });
 
@@ -266,5 +261,5 @@ pool.query('SELECT 1', (err, results) => {
 });
 
 app.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}`);
+    console.log(`Server running at http://localhost:${port}`);
 });
