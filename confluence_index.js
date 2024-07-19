@@ -38,7 +38,7 @@ const pageId = 2464689130; // Confluence page ID
 
 // Fetch current page version from Confluence
 const fetchPageVersion = async (pageId, auth) => {
-    const url = `${confluenceUrl}/${pageId}`;
+    const url = `${confluenceUrl}/${pageId}?expand=version`; // Added expand=version to fetch version details
     try {
         const response = await fetch(url, {
             method: 'GET',
@@ -47,16 +47,24 @@ const fetchPageVersion = async (pageId, auth) => {
                 'Content-Type': 'application/json'
             }
         });
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const text = await response.text(); // Get response text for more details
+            throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
         }
+        
         const result = await response.json();
-        return result.version.number;
+        if (result.version && result.version.number) {
+            return result.version.number;
+        } else {
+            throw new Error('Version number not found in response');
+        }
     } catch (error) {
-        console.error('Error fetching page version:', error);
+        console.error('Error fetching page version:', error.message);
         throw error;
     }
 };
+
 
 // Update Confluence page with new data
 const postToConfluence = async (data) => {
