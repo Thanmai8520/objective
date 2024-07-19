@@ -37,7 +37,6 @@ const executeQuery = (query, params) => {
 const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
 const auth = 'Bearer OTEMMTIxNTc3Mzg30ta91VBrtK5WCZ]bsEyQH+mhgqgm'; // Personal access token
 const pageId = 2464689130; // Confluence page ID
-const spaceKey = 'G01515269';
 
 const fetchPageContent = async () => {
     try {
@@ -53,8 +52,9 @@ const fetchPageContent = async () => {
         }
 
         const result = await response.json();
-        console.log('Current Page Content:', result.body.storage.value); // Print the current content
-        return result.body.storage.value;
+        const content = result.body.storage.value;
+        console.log('Current Page Content:', content); // Print the current content
+        return content;
     } catch (error) {
         console.error('Error fetching page content:', error);
         throw error;
@@ -128,34 +128,20 @@ const postToConfluence = async (data) => {
         const newVersion = currentVersion + 1;
 
         // Fetch the current content
-        const response = await fetch(`${confluenceUrl}/${pageId}?expand=body.storage`, {
-            headers: {
-                'Authorization': auth,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        const currentContent = result.body.storage.value;
-
-        console.log('Current Page Content:', currentContent); // Print the current content
+        const currentContent = await fetchPageContent(); // Use the updated fetchPageContent function
 
         // Locate the "Version Control" heading using a flexible approach
-        const versionControlHeadingRegex = /<h1[^>]*>\s*Version Control\s*<\/h1>/i;
+        const versionControlHeadingRegex = /<h[1-6][^>]*>\s*Version Control\s*<\/h[1-6]>/i;
         const match = currentContent.match(versionControlHeadingRegex);
 
         if (!match) {
             throw new Error('Version Control heading not found in the page content');
         }
 
-        const versionControlIndex = match.index + match[0].length;
+        const headingIndex = match.index + match[0].length;
 
         // Insert the table below the "Version Control" heading
-        const newContent = `${currentContent.slice(0, versionControlIndex)}
+        const newContent = `${currentContent.slice(0, headingIndex)}
         <table>
             <tr>
                 <th>Application Name</th>
@@ -178,7 +164,7 @@ const postToConfluence = async (data) => {
                 </tr>
             `).join('')}
         </table>
-        ${currentContent.slice(versionControlIndex)}`;
+        ${currentContent.slice(headingIndex)}`;
 
         // Construct the request body for Confluence
         const requestBody = {
