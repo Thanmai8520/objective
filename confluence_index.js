@@ -53,7 +53,11 @@ const fetchPageVersion = async (pageId, auth) => {
     }
 
     const result = await response.json();
-    return { version: result.version.number, content: result.body.storage.value }; // Return the current version number and page content
+    if (result.body && result.body.storage) {
+      return { version: result.version.number, content: result.body.storage.value };
+    } else {
+      throw new Error('Unexpected response structure from Confluence');
+    }
   } catch (error) {
     console.error('Error fetching page version:', error);
     throw error;
@@ -125,6 +129,11 @@ const postToConfluence = async (data) => {
   try {
     const { version, content } = await fetchPageVersion(pageId, auth);
     const newVersion = version + 1;
+
+    // Ensure the content is a string before using indexOf
+    if (typeof content !== 'string') {
+      throw new Error('Fetched page content is not a string');
+    }
 
     // Locate the "Version Control" section
     const sectionIndex = content.indexOf('<h3 style=""><strong>Version Control</strong></h3>');
