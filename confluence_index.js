@@ -52,7 +52,9 @@ const fetchPageContent = async () => {
         }
 
         const result = await response.json();
-        return result.body.storage.value;
+        const content = result.body.storage.value;
+        console.log('Current Page Content:', content); // Print the current content
+        return content;
     } catch (error) {
         console.error('Error fetching page content:', error);
         throw error;
@@ -126,28 +128,29 @@ const postToConfluence = async (data) => {
         const newVersion = currentVersion + 1;
 
         // Fetch the current content
-        const currentContent = await fetchPageContent();
+        const currentContent = await fetchPageContent(); // Use the updated fetchPageContent function
 
-        // Modify the HTML content
-        let updatedContent = currentContent;
+        // Locate the "Version Control" heading using a flexible approach
+        const versionControlHeadingRegex = /<h[1-6][^>]*>\s*Version Control\s*<\/h[1-6]>/i;
+        const match = currentContent.match(versionControlHeadingRegex);
 
-        // Find the position of the "Version Control" heading
-        const headingIndex = updatedContent.indexOf('<h3 style=""><strong>Version Control</strong></h3>');
-        if (headingIndex === -1) {
+        if (!match) {
             throw new Error('Version Control heading not found in the page content');
         }
 
-        // Find the end of the section to remove the old table
-        let tableStartIndex = updatedContent.indexOf('<table>', headingIndex);
-        if (tableStartIndex !== -1) {
-            let tableEndIndex = updatedContent.indexOf('</table>', tableStartIndex) + '</table>'.length;
-            if (tableEndIndex !== -1) {
-                updatedContent = updatedContent.slice(0, tableStartIndex) + updatedContent.slice(tableEndIndex);
-            }
+        const headingIndex = match.index + match[0].length;
+
+        // Find and replace the old table
+        let newContent = currentContent.slice(0, headingIndex);
+        
+        const oldTableStartIndex = newContent.indexOf('<table>', headingIndex);
+        if (oldTableStartIndex !== -1) {
+            const oldTableEndIndex = newContent.indexOf('</table>', oldTableStartIndex) + '</table>'.length;
+            newContent = newContent.slice(0, oldTableStartIndex) + newContent.slice(oldTableEndIndex);
         }
 
-        // Create a new table HTML
-        const tableHtml = `
+        // Append the new table after the heading
+        newContent += `
             <table>
                 <tr>
                     <th>Application Name</th>
@@ -172,17 +175,14 @@ const postToConfluence = async (data) => {
             </table>
         `;
 
-        // Insert the new table after the "Version Control" heading
-        updatedContent = updatedContent.slice(0, headingIndex + '<h3 style=""><strong>Version Control</strong></h3>'.length) + tableHtml + updatedContent.slice(headingIndex + '<h3 style=""><strong>Version Control</strong></h3>'.length);
-
-        // Construct the request body for Confluence
+        // Update the page with the new content
         const requestBody = {
             version: { number: newVersion },
             title: 'Build Information',
             type: 'page',
             body: {
                 storage: {
-                    value: updatedContent,
+                    value: newContent,
                     representation: 'storage'
                 }
             }
@@ -257,6 +257,14 @@ app.get('/mae/getBuild/:applicationName', (req, res) => {
         });
 });
 
+pool.query('SELECT 1', (err, results) => {
+    if (err) {
+        console.error('Error connecting to the database:', err);
+    } else {
+        console.log('Connected to the database');
+    }
+});
+
 app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+    console.log(`Server is running on http://localhost:${port}`);
 });
