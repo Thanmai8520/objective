@@ -130,22 +130,16 @@ const postToConfluence = async (data) => {
     const { version, content } = await fetchPageVersion(pageId, auth);
     const newVersion = version + 1;
 
-    // Ensure the content is a string before using indexOf
+    // Ensure the content is a string before processing
     if (typeof content !== 'string') {
       throw new Error('Fetched page content is not a string');
     }
 
-    // Locate the "Version Control" section
-    const sectionIndex = content.indexOf('<h3 style=""><strong>Version Control</strong></h3>');
-    if (sectionIndex === -1) {
-      throw new Error('Could not find the "Version Control" section in the Confluence page.');
-    }
+    // Regular expression to find the "Version Control" section
+    const sectionRegEx = /<h3[^>]*><strong>Version Control<\/strong><\/h3>/i;
 
-    // Locate the table after "Version Control"
-    const tableStartIndex = content.indexOf('<table', sectionIndex);
-    const tableEndIndex = content.indexOf('</table>', tableStartIndex) + 8;
-    if (tableStartIndex === -1 || tableEndIndex === -1) {
-      throw new Error('Could not find the table after the "Version Control" section.');
+    if (!sectionRegEx.test(content)) {
+      throw new Error('Could not find the "Version Control" section in the Confluence page.');
     }
 
     // Generate the new table content
@@ -179,8 +173,8 @@ const postToConfluence = async (data) => {
       </table>
     `;
 
-    // Replace the old table with the new one
-    const updatedContent = content.substring(0, tableStartIndex) + newTableContent + content.substring(tableEndIndex);
+    // Find the "Version Control" section and insert the new table
+    const updatedContent = content.replace(sectionRegEx, match => `${match}${newTableContent}`);
 
     // Construct the request body for Confluence
     const requestBody = {
