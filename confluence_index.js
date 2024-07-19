@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql');
 const fetch = require('node-fetch');
-const cheerio = require('cheerio');
 
 const app = express();
 const port = 3000;
@@ -53,9 +52,7 @@ const fetchPageContent = async () => {
         }
 
         const result = await response.json();
-        const content = result.body.storage.value;
-        console.log('Current Page Content:', content); // Print the current content
-        return content;
+        return result.body.storage.value;
     } catch (error) {
         console.error('Error fetching page content:', error);
         throw error;
@@ -131,50 +128,52 @@ const postToConfluence = async (data) => {
         // Fetch the current content
         const currentContent = await fetchPageContent();
 
-        // Load the HTML content with cheerio
-        const $ = cheerio.load(currentContent);
+        // Modify the HTML content
+        let updatedContent = currentContent;
 
-        // Use the provided heading to locate the "Version Control" section
-        const versionControlHeading = $('h3').filter(function () {
-            return $(this).html().trim() === '<strong>Version Control</strong>';
-        });
-
-        if (versionControlHeading.length === 0) {
+        // Find the position of the "Version Control" heading
+        const headingIndex = updatedContent.indexOf('<h3 style=""><strong>Version Control</strong></h3>');
+        if (headingIndex === -1) {
             throw new Error('Version Control heading not found in the page content');
         }
 
-        // Remove any existing table under the "Version Control" heading
-        versionControlHeading.nextUntil('h3').filter('table').remove();
+        // Find the end of the section to remove the old table
+        let tableStartIndex = updatedContent.indexOf('<table>', headingIndex);
+        if (tableStartIndex !== -1) {
+            let tableEndIndex = updatedContent.indexOf('</table>', tableStartIndex) + '</table>'.length;
+            if (tableEndIndex !== -1) {
+                updatedContent = updatedContent.slice(0, tableStartIndex) + updatedContent.slice(tableEndIndex);
+            }
+        }
 
-        // Create a new table
-        const table = $('<table></table>').append(
-            '<tr>' +
-            '<th>Application Name</th>' +
-            '<th>Target Environment</th>' +
-            '<th>Version</th>' +
-            '<th>Release</th>' +
-            '<th>Jira Task ID</th>' +
-            '<th>Release Notes</th>' +
-            '<th>Date and Time</th>' +
-            '</tr>'
-        );
+        // Create a new table HTML
+        const tableHtml = `
+            <table>
+                <tr>
+                    <th>Application Name</th>
+                    <th>Target Environment</th>
+                    <th>Version</th>
+                    <th>Release</th>
+                    <th>Jira Task ID</th>
+                    <th>Release Notes</th>
+                    <th>Date and Time</th>
+                </tr>
+                ${data.map(item => `
+                    <tr>
+                        <td>${item.ApplicationName || ''}</td>
+                        <td>${item.TargetEnvironment || ''}</td>
+                        <td>${item.Version || ''}</td>
+                        <td>${item.Release || ''}</td>
+                        <td>${item.JiraTaskId || ''}</td>
+                        <td>${item.ReleaseNotes || ''}</td>
+                        <td>${item.Date_Time || ''}</td>
+                    </tr>
+                `).join('')}
+            </table>
+        `;
 
-        data.forEach(item => {
-            table.append(
-                `<tr>
-                    <td>${item.ApplicationName || ''}</td>
-                    <td>${item.TargetEnvironment || ''}</td>
-                    <td>${item.Version || ''}</td>
-                    <td>${item.Release || ''}</td>
-                    <td>${item.JiraTaskId || ''}</td>
-                    <td>${item.ReleaseNotes || ''}</td>
-                    <td>${item.Date_Time || ''}</td>
-                </tr>`
-            );
-        });
-
-        // Append the new table below the "Version Control" heading
-        versionControlHeading.after(table);
+        // Insert the new table after the "Version Control" heading
+        updatedContent = updatedContent.slice(0, headingIndex + '<h3 style=""><strong>Version Control</strong></h3>'.length) + tableHtml + updatedContent.slice(headingIndex + '<h3 style=""><strong>Version Control</strong></h3>'.length);
 
         // Construct the request body for Confluence
         const requestBody = {
@@ -183,7 +182,7 @@ const postToConfluence = async (data) => {
             type: 'page',
             body: {
                 storage: {
-                    value: $.html(),
+                    value: updatedContent,
                     representation: 'storage'
                 }
             }
@@ -258,14 +257,6 @@ app.get('/mae/getBuild/:applicationName', (req, res) => {
         });
 });
 
-pool.query('SELECT 1', (err, results) => {
-    if (err) {
-        console.error('Error connecting to the database:', err);
-    } else {
-        console.log('Connected to the database');
-    }
-});
-
 app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+    console.log(`Server running at http://localhost:${port}`);
 });
