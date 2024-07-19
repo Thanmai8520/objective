@@ -36,7 +36,7 @@ const executeQuery = (query, params) => {
 };
 
 const fetchPageVersion = async (pageId, auth) => {
-  const confluenceUrl = `https://confluence.barcapint.com/rest/api/content/${pageId}`;
+  const confluenceUrl = `https://confluence.barcapint.com/rest/api/content/${pageId}?expand=version`;
 
   try {
     const response = await fetch(confluenceUrl, {
@@ -48,7 +48,8 @@ const fetchPageVersion = async (pageId, auth) => {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const text = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
     }
 
     const result = await response.json();
@@ -70,7 +71,8 @@ const getConfluencePageVersion = async () => {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const text = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
     }
 
     const result = await response.json();
@@ -119,7 +121,7 @@ const convertDate = (dateString) => {
   return formattedDate.getTime(); // Return milliseconds for comparison
 };
 
-app.get('/postToConfluence/', async (req, res) => {
+app.get('/postToConfluence', async (req, res) => {
   const query = 'SELECT * FROM maebuildinfo';
 
   try {
