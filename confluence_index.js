@@ -35,8 +35,31 @@ const executeQuery = (query, params) => {
 };
 
 const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
-const auth = 'Bearer OTEMMTIxNTc3Mzg30ta91VBrtK5WCZ]bsEyQH+mhgqgm'; // Personal access token
-const pageId = 2464689130; // Confluence page ID
+const auth = 'Bearer YOUR_PERSONAL_ACCESS_TOKEN'; // Replace with your personal access token
+const pageId = 'YOUR_PAGE_ID'; // Replace with the ID of the Confluence page to update
+
+const fetchPageContent = async () => {
+    try {
+        const response = await fetch(`${confluenceUrl}/${pageId}?expand=body.storage`, {
+            headers: {
+                'Authorization': auth,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        const content = result.body.storage.value;
+        console.log('Current Page Content:', content); // Print the current content
+        return content;
+    } catch (error) {
+        console.error('Error fetching page content:', error);
+        throw error;
+    }
+};
 
 const getConfluencePageVersion = async () => {
     try {
@@ -105,86 +128,49 @@ const postToConfluence = async (data) => {
         const newVersion = currentVersion + 1;
 
         // Fetch the current content
-        const response = await fetch(`${confluenceUrl}/${pageId}?expand=body.storage`, {
-            headers: {
-                'Authorization': auth,
-                'Content-Type': 'application/json'
-            }
-        });
+        const currentContent = await fetchPageContent(); // Use the updated fetchPageContent function
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        // Locate the "Version Control" heading using a flexible approach
+        const versionControlHeadingRegex = /<h[1-6][^>]*>\s*Version Control\s*<\/h[1-6]>/i;
+        const match = currentContent.match(versionControlHeadingRegex);
 
-        const result = await response.json();
-        const currentContent = result.body.storage.value;
-
-        // Locate the "Version Control" heading
-        const headingTag = '<h1>Version Control</h1>';
-        const versionControlIndex = currentContent.indexOf(headingTag);
-        if (versionControlIndex === -1) {
+        if (!match) {
             throw new Error('Version Control heading not found in the page content');
         }
 
-        // Calculate the end of the heading to position the table right after it
-        const endOfHeadingIndex = versionControlIndex + headingTag.length;
+        const headingIndex = match.index + match[0].length;
 
-        // Remove the old table if it exists
-        const startIndexOfOldTable = currentContent.indexOf('<table>', endOfHeadingIndex);
-        const endIndexOfOldTable = currentContent.indexOf('</table>', startIndexOfOldTable) + '</table>'.length;
-
-        let newContent;
-        if (startIndexOfOldTable !== -1 && endIndexOfOldTable !== -1) {
-            newContent = `${currentContent.slice(0, startIndexOfOldTable)}
-            <table>
+        // Insert the table below the "Version Control" heading
+        const newContent = `${currentContent.slice(0, headingIndex)}
+        <table id="versionTable">
+            <tr>
+                <th>Application Name</th>
+                <th>CIT Version</th>
+                <th>SIT Version</th>
+                <th>OAT</th>
+                <th>VPT</th>
+                <th>Prod Version</th>
+                <th>Release</th>
+                <th>Jira Task ID</th>
+                <th>Release Notes</th>
+                <th>Date and Time</th>
+            </tr>
+            ${data.map(item => `
                 <tr>
-                    <th>Application Name</th>
-                    <th>Target Environment</th>
-                    <th>Version</th>
-                    <th>Release</th>
-                    <th>Jira Task ID</th>
-                    <th>Release Notes</th>
-                    <th>Date and Time</th>
+                    <td>${item.ApplicationName || ''}</td>
+                    <td>${item.CIT_Version || ''}</td>
+                    <td>${item.SIT_Version || ''}</td>
+                    <td>${item.OAT || ''}</td>
+                    <td>${item.VPT || ''}</td>
+                    <td>${item.Prod_Version || ''}</td>
+                    <td>${item.Release || ''}</td>
+                    <td>${item.JiraTaskId || ''}</td>
+                    <td>${item.ReleaseNotes || ''}</td>
+                    <td>${item.Date_Time || ''}</td>
                 </tr>
-                ${data.map(item => `
-                    <tr>
-                        <td>${item.ApplicationName || ''}</td>
-                        <td>${item.TargetEnvironment || ''}</td>
-                        <td>${item.Version || ''}</td>
-                        <td>${item.Release || ''}</td>
-                        <td>${item.JiraTaskId || ''}</td>
-                        <td>${item.ReleaseNotes || ''}</td>
-                        <td>${item.Date_Time || ''}</td>
-                    </tr>
-                `).join('')}
-            </table>
-            ${currentContent.slice(endIndexOfOldTable)}`;
-        } else {
-            newContent = `${currentContent.slice(0, endOfHeadingIndex)}
-            <table>
-                <tr>
-                    <th>Application Name</th>
-                    <th>Target Environment</th>
-                    <th>Version</th>
-                    <th>Release</th>
-                    <th>Jira Task ID</th>
-                    <th>Release Notes</th>
-                    <th>Date and Time</th>
-                </tr>
-                ${data.map(item => `
-                    <tr>
-                        <td>${item.ApplicationName || ''}</td>
-                        <td>${item.TargetEnvironment || ''}</td>
-                        <td>${item.Version || ''}</td>
-                        <td>${item.Release || ''}</td>
-                        <td>${item.JiraTaskId || ''}</td>
-                        <td>${item.ReleaseNotes || ''}</td>
-                        <td>${item.Date_Time || ''}</td>
-                    </tr>
-                `).join('')}
-            </table>
-            ${currentContent.slice(endOfHeadingIndex)}`;
-        }
+            `).join('')}
+        </table>
+        ${currentContent.slice(headingIndex)}`;
 
         // Construct the request body for Confluence
         const requestBody = {
@@ -225,25 +211,57 @@ const postToConfluence = async (data) => {
     }
 };
 
-app.get('/mae/getBuild/:applicationName', async (req, res) => {
+app.get('/postToConfluence', async (req, res) => {
     try {
-        const { applicationName } = req.params;
-        const query = 'SELECT * FROM maebuildinfo WHERE ApplicationName = ?';
-        const data = await executeQuery(query, [applicationName]);
+        const query = 'SELECT * FROM maebuildinfo';
+        const dbResults = await executeQuery(query);
+        const results = getLatestVersions(dbResults);
 
-        if (data.length === 0) {
-            return res.status(404).json({ message: 'No build details found for the specified application name' });
+        if (results.length > 0) {
+            const dataToPost = results;
+            await postToConfluence(dataToPost);
+            res.json({ message: 'Data posted to Confluence successfully' });
+        } else {
+            res.status(404).json({ message: 'Build details not found for the application name' });
         }
+    } catch (err) {
+        console.error('Error fetching build details or posting to Confluence:', err);
+        res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
+    }
+});
 
-        const latestVersions = getLatestVersions(data);
-        await postToConfluence(latestVersions);
-        res.json(latestVersions);
-    } catch (error) {
-        console.error('Error fetching build details or posting to Confluence:', error);
-        res.status(500).json({ message: 'Error fetching build details or posting to Confluence', error: error.message });
+app.get('/mae/getBuild', (req, res) => {
+    const query = 'SELECT * FROM maebuildinfo';
+    executeQuery(query)
+        .then(results => res.json(results))
+        .catch(err => res.status(500).json({ error: 'Error fetching build details' }));
+});
+
+app.get('/mae/getBuild/:applicationName', (req, res) => {
+    const { applicationName } = req.params;
+    const query = `SELECT * FROM maebuildinfo WHERE ApplicationName=${mysql.escape(applicationName)} ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC`;
+    executeQuery(query)
+        .then(results => {
+            if (results.length > 0) {
+                res.json(results);
+            } else {
+                res.status(404).json({ message: 'Build details not found for the application name' });
+            }
+        })
+        .catch(err => {
+            console.error('Error fetching build details:', err);
+            res.status(500).json({ error: 'Error fetching build details' });
+        });
+});
+
+pool.query('SELECT 1', (err, results) => {
+    if (err) {
+        console.error('Error connecting to the database:', err);
+    } else {
+        console.log('Connected to the database');
     }
 });
 
 app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+    console.log(`Server is running on http://localhost:${port}`);
 });
