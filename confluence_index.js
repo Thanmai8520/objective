@@ -36,7 +36,7 @@ const executeQuery = (query, params) => {
 };
 
 const fetchPageVersion = async (pageId, auth) => {
-  const confluenceUrl = `https://confluence.barcapint.com/rest/api/content/${pageId}?expand=version`;
+  const confluenceUrl = `https://confluence.barcapint.com/rest/api/content/${pageId}?expand=body.storage,version`;
 
   try {
     const response = await fetch(confluenceUrl, {
@@ -53,7 +53,7 @@ const fetchPageVersion = async (pageId, auth) => {
     }
 
     const result = await response.json();
-    return result.version.number; // Return the current version number
+    return { version: result.version.number, content: result.body.storage.value }; // Return the current version number and page content
   } catch (error) {
     console.error('Error fetching page version:', error);
     throw error;
@@ -63,25 +63,6 @@ const fetchPageVersion = async (pageId, auth) => {
 const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
 const auth = 'Bearer OTEWMTIxMTc3Mzg30ta91VBrtK5WCZlbsEyQH+whgqgm'; // Replace with your actual token
 const pageId = '2464689130'; // Replace with your Confluence page ID
-
-const getConfluencePageVersion = async () => {
-  try {
-    const response = await fetch(`${confluenceUrl}/${pageId}?expand=version`, {
-      headers: { 'Authorization': auth }
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
-    }
-
-    const result = await response.json();
-    return result.version.number;
-  } catch (error) {
-    console.error('Error fetching Confluence page version:', error);
-    throw error;
-  }
-};
 
 const getLatestVersions = (data) => {
   const latestVersionsMap = new Map();
@@ -142,8 +123,55 @@ app.get('/postToConfluence', async (req, res) => {
 
 const postToConfluence = async (data) => {
   try {
-    const currentVersion = await getConfluencePageVersion();
-    const newVersion = currentVersion + 1;
+    const { version, content } = await fetchPageVersion(pageId, auth);
+    const newVersion = version + 1;
+
+    // Locate the "Version Control" section
+    const sectionIndex = content.indexOf('<h3 style=""><strong>Version Control</strong></h3>');
+    if (sectionIndex === -1) {
+      throw new Error('Could not find the "Version Control" section in the Confluence page.');
+    }
+
+    // Locate the table after "Version Control"
+    const tableStartIndex = content.indexOf('<table', sectionIndex);
+    const tableEndIndex = content.indexOf('</table>', tableStartIndex) + 8;
+    if (tableStartIndex === -1 || tableEndIndex === -1) {
+      throw new Error('Could not find the table after the "Version Control" section.');
+    }
+
+    // Generate the new table content
+    const newTableContent = `
+      <table>
+        <tr>
+          <th>Application Name</th>
+          <th>CIT Version</th>
+          <th>SIT Version</th>
+          <th>OAT</th>
+          <th>VPT</th>
+          <th>Prod Version</th>
+          <th>Release</th>
+          <th>Jira Task ID</th>
+          <th>Release Notes</th>
+          <th>Date and Time</th>
+        </tr>
+        ${data.map(item => `
+          <tr>
+            <td>${item.ApplicationName || ''}</td>
+            <td>${item.CIT_Version || ''}</td>
+            <td>${item.SIT_Version || ''}</td>
+            <td>${item.OAT || ''}</td>
+            <td>${item.VPT || ''}</td>
+            <td>${item.Prod_Version || ''}</td>
+            <td>${item.Release || ''}</td>
+            <td>${item.JiraTaskId || ''}</td>
+            <td>${item.ReleaseNotes || ''}</td>
+            <td>${item.Date_Time || ''}</td>
+          </tr>`).join('')}
+      </table>
+    `;
+
+    // Replace the old table with the new one
+    const updatedContent = content.substring(0, tableStartIndex) + newTableContent + content.substring(tableEndIndex);
 
     // Construct the request body for Confluence
     const requestBody = {
@@ -152,37 +180,7 @@ const postToConfluence = async (data) => {
       type: 'page',
       body: {
         storage: {
-          value: `
-            <h3 style=""><strong>Version Control</strong></h3>
-            <h1>Build Information of the latest details</h1>
-            <table>
-              <tr>
-                <th>Application Name</th>
-                <th>CIT Version</th>
-                <th>SIT Version</th>
-                <th>OAT</th>
-                <th>VPT</th>
-                <th>Prod Version</th>
-                <th>Release</th>
-                <th>Jira Task ID</th>
-                <th>Release Notes</th>
-                <th>Date and Time</th>
-              </tr>
-              ${data.map(item => `
-                <tr>
-                  <td>${item.ApplicationName || ''}</td>
-                  <td>${item.CIT_Version || ''}</td>
-                  <td>${item.SIT_Version || ''}</td>
-                  <td>${item.OAT || ''}</td>
-                  <td>${item.VPT || ''}</td>
-                  <td>${item.Prod_Version || ''}</td>
-                  <td>${item.Release || ''}</td>
-                  <td>${item.JiraTaskId || ''}</td>
-                  <td>${item.ReleaseNotes || ''}</td>
-                  <td>${item.Date_Time || ''}</td>
-                </tr>`).join('')}
-            </table>
-          `,
+          value: updatedContent,
           representation: 'storage'
         }
       }
