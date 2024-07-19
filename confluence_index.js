@@ -128,20 +128,32 @@ const postToConfluence = async (data) => {
         const newVersion = currentVersion + 1;
 
         // Fetch the current content
-        const currentContent = await fetchPageContent(); // Use the updated fetchPageContent function
+        const response = await fetch(`${confluenceUrl}/${pageId}?expand=body.storage`, {
+            headers: {
+                'Authorization': auth,
+                'Content-Type': 'application/json'
+            }
+        });
 
-        // Locate the "Version Control" heading using a flexible approach
-        const versionControlHeadingRegex = /<h[1-6][^>]*>\s*Version Control\s*<\/h[1-6]>/i;
-        const match = currentContent.match(versionControlHeadingRegex);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
-        if (!match) {
+        const result = await response.json();
+        const currentContent = result.body.storage.value;
+
+        // Locate the "Version Control" heading
+        const headingTag = '<h1>Version Control</h1>';
+        const versionControlIndex = currentContent.indexOf(headingTag);
+        if (versionControlIndex === -1) {
             throw new Error('Version Control heading not found in the page content');
         }
 
-        const headingIndex = match.index + match[0].length;
+        // Calculate the end of the heading to position the table right after it
+        const endOfHeadingIndex = versionControlIndex + headingTag.length;
 
         // Insert the table below the "Version Control" heading
-        const newContent = `${currentContent.slice(0, headingIndex)}
+        const newContent = `${currentContent.slice(0, endOfHeadingIndex)}
         <table>
             <tr>
                 <th>Application Name</th>
@@ -164,7 +176,7 @@ const postToConfluence = async (data) => {
                 </tr>
             `).join('')}
         </table>
-        ${currentContent.slice(headingIndex)}`;
+        ${currentContent.slice(endOfHeadingIndex)}`;
 
         // Construct the request body for Confluence
         const requestBody = {
@@ -204,6 +216,7 @@ const postToConfluence = async (data) => {
         throw error; // Throw the error to be handled by the caller
     }
 };
+
 
 app.get('/postToConfluence', async (req, res) => {
     try {
