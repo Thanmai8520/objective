@@ -261,4 +261,10 @@ pool.query('SELECT 1', (err, results) => {
     if (err) {
         console.error('Error connecting to the database:', err);
     } else {
-        console.log('Connected to the database
+        console.log('Connected to the database');
+    }
+});
+
+app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+});
