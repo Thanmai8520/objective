@@ -46,6 +46,13 @@ const fetchPageVersion = async (pageId, auth) => {
             }
         });
 
+        // Check if response is ok
+        if (!response.ok) {
+            const text = await response.text();
+            console.error(`Error fetching page version: ${response.status} ${text}`);
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const result = await response.json();
         return result.version.number; // Return the current version number
     } catch (error) {
@@ -53,6 +60,7 @@ const fetchPageVersion = async (pageId, auth) => {
         throw error;
     }
 };
+
 
 const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content/';
 const auth = "Bearer OTETT330a91VertxScZIbsEyQH+shgaga"; // Replace with your actual token
