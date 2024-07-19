@@ -26,7 +26,6 @@ const executeQuery = (query, params) => {
     return new Promise((resolve, reject) => {
         pool.query(query, params, (err, results) => {
             if (err) {
-                console.error('Database query error:', err); // Detailed error logging
                 reject(err);
             } else {
                 resolve(results);
@@ -38,29 +37,6 @@ const executeQuery = (query, params) => {
 const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
 const auth = 'Bearer OTEMMTIxNTc3Mzg30ta91VBrtK5WCZ]bsEyQH+mhgqgm'; // Personal access token
 const pageId = 2464689130; // Confluence page ID
-
-const fetchPageContent = async () => {
-    try {
-        const response = await fetch(`${confluenceUrl}/${pageId}?expand=body.storage`, {
-            headers: {
-                'Authorization': auth,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        const content = result.body.storage.value;
-        console.log('Current Page Content:', content); // Print the current content
-        return content;
-    } catch (error) {
-        console.error('Error fetching page content:', error);
-        throw error;
-    }
-};
 
 const getConfluencePageVersion = async () => {
     try {
@@ -143,18 +119,18 @@ const postToConfluence = async (data) => {
         const result = await response.json();
         const currentContent = result.body.storage.value;
 
-        // Locate the "Version Control" heading using a regular expression
-        const versionControlHeadingRegex = /<h1[^>]*>Version Control<\/h1>/i;
-        const match = currentContent.match(versionControlHeadingRegex);
-
-        if (!match) {
+        // Locate the "Version Control" heading
+        const headingTag = '<h1>Version Control</h1>';
+        const versionControlIndex = currentContent.indexOf(headingTag);
+        if (versionControlIndex === -1) {
             throw new Error('Version Control heading not found in the page content');
         }
 
-        const versionControlIndex = match.index + match[0].length;
+        // Calculate the end of the heading to position the table right after it
+        const endOfHeadingIndex = versionControlIndex + headingTag.length;
 
         // Insert the table below the "Version Control" heading
-        const newContent = `${currentContent.slice(0, versionControlIndex)}
+        const newContent = `${currentContent.slice(0, endOfHeadingIndex)}
         <table>
             <tr>
                 <th>Application Name</th>
@@ -177,7 +153,7 @@ const postToConfluence = async (data) => {
                 </tr>
             `).join('')}
         </table>
-        ${currentContent.slice(versionControlIndex)}`;
+        ${currentContent.slice(endOfHeadingIndex)}`;
 
         // Construct the request body for Confluence
         const requestBody = {
@@ -218,7 +194,6 @@ const postToConfluence = async (data) => {
     }
 };
 
-
 app.get('/postToConfluence', async (req, res) => {
     try {
         const query = 'SELECT * FROM maebuildinfo';
@@ -242,10 +217,7 @@ app.get('/mae/getBuild', (req, res) => {
     const query = 'SELECT * FROM maebuildinfo';
     executeQuery(query)
         .then(results => res.json(results))
-        .catch(err => {
-            console.error('Error fetching build details:', err);
-            res.status(500).json({ error: 'Error fetching build details', details: err.message });
-        });
+        .catch(err => res.status(500).json({ error: 'Error fetching build details' }));
 });
 
 app.get('/mae/getBuild/:applicationName', (req, res) => {
@@ -261,7 +233,7 @@ app.get('/mae/getBuild/:applicationName', (req, res) => {
         })
         .catch(err => {
             console.error('Error fetching build details:', err);
-            res.status(500).json({ error: 'Error fetching build details', details: err.message });
+            res.status(500).json({ error: 'Error fetching build details' });
         });
 });
 
@@ -274,5 +246,5 @@ pool.query('SELECT 1', (err, results) => {
 });
 
 app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+    console.log(`Server is running on http://localhost:${port}`);
 });
