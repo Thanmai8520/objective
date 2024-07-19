@@ -8,7 +8,7 @@ const port = 3000;
 
 app.use(cors()); // Enable CORS
 
-console.log("Server Started..");
+console.log('Server Started..');
 
 process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'; // Ignore certificates for development purposes only
 
@@ -17,7 +17,7 @@ app.disable('etag');
 const pool = mysql.createPool({
     host: '28.20.136.141',
     user: 'root',
-    password: 'Tibleau',
+    password: 'Tableau',
     database: 'mortgages_sv',
     connectionLimit: 10
 });
@@ -26,7 +26,6 @@ const executeQuery = (query, params) => {
     return new Promise((resolve, reject) => {
         pool.query(query, params, (err, results) => {
             if (err) {
-                console.error('Database query error:', err);
                 reject(err);
             } else {
                 resolve(results);
@@ -35,39 +34,35 @@ const executeQuery = (query, params) => {
     });
 };
 
-const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
-const auth = 'Bearer OTEMMTIxNTc3Mzg30ta91VBrtK5WCZ]bsEyQH+mhgqgm'; // Personal access token
-const pageId = 2464689130; // Confluence page ID
+const fetchPageVersion = async (pageId, auth) => {
+    const confluenceUrl = `https://confluence.barcapint.com/rest/api/content/${pageId}?expand=version`;
 
-const fetchPageContent = async () => {
     try {
-        const response = await fetch(`${confluenceUrl}/${pageId}?expand=body.storage`, {
+        const response = await fetch(confluenceUrl, {
+            method: 'GET',
             headers: {
-                'Authorization': auth,
-                'Content-Type': 'application/json'
+                "Authorization": auth,
+                "Content-Type": "application/json"
             }
         });
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
         const result = await response.json();
-        const content = result.body.storage.value;
-        console.log('Current Page Content:', content); // Print the current content
-        return content;
+        return result.version.number; // Return the current version number
     } catch (error) {
-        console.error('Error fetching page content:', error);
+        console.error('Error fetching page version:', error);
         throw error;
     }
 };
+
+const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content/';
+const auth = "Bearer OTETT330a91VertxScZIbsEyQH+shgaga"; // Replace with your actual token
+const pageId = "2464689130"; // Replace with your Confluence page ID
 
 const getConfluencePageVersion = async () => {
     try {
         const response = await fetch(`${confluenceUrl}/${pageId}?expand=version`, {
             headers: {
-                'Authorization': auth,
-                'Content-Type': 'application/json'
+                "Authorization": auth
             }
         });
 
@@ -78,24 +73,24 @@ const getConfluencePageVersion = async () => {
         const result = await response.json();
         return result.version.number;
     } catch (error) {
-        console.error('Error fetching Confluence page version:', error);
+        console.error("Error fetching Confluence page version:", error);
         throw error;
     }
 };
 
 const getLatestVersions = (data) => {
-    const latestVersionsMap = new Map();
+    const latestVersions = new Map();
 
     data.forEach(item => {
         const key = `${item.ApplicationName}-${item.TargetEnvironment}`;
-        const existingItem = latestVersionsMap.get(key);
+        const existingItem = latestVersions.get(key);
 
         if (!existingItem || convertDate(item.Date_Time) > convertDate(existingItem.Date_Time)) {
-            latestVersionsMap.set(key, item);
+            latestVersions.set(key, item);
         }
     });
 
-    return Array.from(latestVersionsMap.values()).sort((a, b) => convertDate(b.Date_Time) - convertDate(a.Date_Time));
+    return Array.from(latestVersions.values()).sort((a, b) => convertDate(b.Date_Time) - convertDate(a.Date_Time));
 };
 
 const convertDate = (dateString) => {
@@ -105,9 +100,8 @@ const convertDate = (dateString) => {
     }
 
     const parts = dateString.split(' ');
-
     if (parts.length !== 2) {
-        console.error("Invalid Date Time format:", dateString);
+        console.error('Invalid Date Time format:', dateString);
         return 0; // Handle unexpected format
     }
 
@@ -115,7 +109,7 @@ const convertDate = (dateString) => {
     const timeParts = parts[1].split(':');
 
     if (dateParts.length !== 3 || timeParts.length !== 3) {
-        console.error("Invalid Date Time format:", dateString);
+        console.error('Invalid Date Time format:', dateString);
         return 0; // Handle unexpected format
     }
 
@@ -128,78 +122,96 @@ const postToConfluence = async (data) => {
         const currentVersion = await getConfluencePageVersion();
         const newVersion = currentVersion + 1;
 
-        // Fetch the current content
-        const currentContent = await fetchPageContent(); // Use the updated fetchPageContent function
+        // Fetch the current content of the Confluence page
+        const pageResponse = await fetch(`${confluenceUrl}/${pageId}?expand=body.storage`, {
+            headers: {
+                "Authorization": auth,
+                "Content-Type": "application/json"
+            }
+        });
 
-        // Locate the "Version Control" heading using a flexible approach
-        const versionControlHeadingRegex = /<h[1-6][^>]*>\s*Version Control\s*<\/h[1-6]>/i;
-        const match = currentContent.match(versionControlHeadingRegex);
-
-        if (!match) {
-            throw new Error('Version Control heading not found in the page content');
+        if (!pageResponse.ok) {
+            throw new Error(`HTTP error! status: ${pageResponse.status}`);
         }
 
-        const headingIndex = match.index + match[0].length;
+        const pageResult = await pageResponse.json();
+        const existingContent = pageResult.body.storage.value;
 
-        // Insert the table below the "Version Control" heading
-        const newContent = `${currentContent.slice(0, headingIndex)}
-        <table>
-            <tr>
-                <th>Application Name</th>
-                <th>Target Environment</th>
-                <th>Version</th>
-                <th>Release</th>
-                <th>Jira Task ID</th>
-                <th>Release Notes</th>
-                <th>Date and Time</th>
-            </tr>
-            ${data.map(item => 
-                `<tr>
-                    <td>${item.ApplicationName || ''}</td>
-                    <td>${item.TargetEnvironment || ''}</td>
-                    <td>${item.Version || ''}</td>
-                    <td>${item.Release || ''}</td>
-                    <td>${item.JiraTaskId || ''}</td>
-                    <td>${item.ReleaseNotes || ''}</td>
-                    <td>${item.Date_Time || ''}</td>
-                </tr>`
-            ).join('')}
-        </table>
-        ${currentContent.slice(headingIndex)}`;
+        // Find the index of the section where the table needs to be inserted
+        const sectionStart = '<h3 style=""><strong>Version Control</strong></h3>';
+        const insertionPoint = existingContent.indexOf(sectionStart);
 
-        // Construct the request body for Confluence
+        if (insertionPoint === -1) {
+            throw new Error('Section "Version Control" not found in the page.');
+        }
+
+        // Construct the new content to be inserted
+        const newTable = `
+            <h3 style=""><strong>Version Control</strong></h3>
+            <table>
+                <tr>
+                    <th>Application Name</th>
+                    <th>CIT Version</th>
+                    <th>SIT Version</th>
+                    <th>OAT</th>
+                    <th>VPT</th>
+                    <th>Prod Version</th>
+                    <th>Release</th>
+                    <th>Jira Task ID</th>
+                    <th>Release Notes</th>
+                    <th>Date and Time</th>
+                </tr>
+                ${data.map(item => `
+                    <tr>
+                        <td>${item.ApplicationName || ''}</td>
+                        <td>${item.CIT_Version || ''}</td>
+                        <td>${item.SIT_Version || ''}</td>
+                        <td>${item.OAT || ''}</td>
+                        <td>${item.VPT || ''}</td>
+                        <td>${item.Prod_Version || ''}</td>
+                        <td>${item.Release || ''}</td>
+                        <td>${item.JiraTaskId || ''}</td>
+                        <td>${item.ReleaseNotes || ''}</td>
+                        <td>${item.Date_Time || ''}</td>
+                    </tr>
+                `).join('')}
+            </table>
+        `;
+
+        // Insert the new content before the existing content
+        const updatedContent = existingContent.slice(0, insertionPoint + sectionStart.length) + newTable + existingContent.slice(insertionPoint + sectionStart.length);
+
         const requestBody = {
             version: { number: newVersion },
             title: 'Build Information',
             type: 'page',
             body: {
                 storage: {
-                    value: newContent,
-                    representation: 'storage'
+                    value: updatedContent,
+                    representation: "storage"
                 }
             }
         };
 
-        console.log('Request Body:', JSON.stringify(requestBody, null, 2));
-
-        // Post the data to Confluence
-        const updateResponse = await fetch(`${confluenceUrl}/${pageId}`, {
-            method: 'PUT',
+        const response = await fetch(`${confluenceUrl}/${pageId}`, {
+            method: "PUT",
             headers: {
-                'Authorization': auth,
-                'Content-Type': 'application/json'
+                "Authorization": auth,
+                "Content-Type": "application/json"
             },
             body: JSON.stringify(requestBody)
         });
 
-        const text = await updateResponse.text();
-        if (!updateResponse.ok) {
-            throw new Error(`HTTP error! status: ${updateResponse.status}, message: ${text}`);
+        const text = await response.text();
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
         }
 
-        const updateResult = JSON.parse(text);
-        console.log('Confluence response:', updateResult);
-        return updateResult; // Return the result if needed
+        const result = JSON.parse(text);
+        console.log("Confluence response:", result);
+
+        return result; // Return the result if needed
     } catch (error) {
         console.error('Error posting to Confluence:', error);
         throw error; // Throw the error to be handled by the caller
@@ -208,16 +220,12 @@ const postToConfluence = async (data) => {
 
 app.get('/postToConfluence', async (req, res) => {
     try {
-        console.log('Fetching build details...');
         const query = 'SELECT * FROM maebuildinfo';
-        const dbResults = await executeQuery(query);
-        console.log('Database results:', dbResults);
+        const results = await executeQuery(query);
+        const latestVersions = getLatestVersions(results);
 
-        const results = getLatestVersions(dbResults);
-        console.log('Latest versions:', results);
-
-        if (results.length > 0) {
-            const dataToPost = results;
+        if (latestVersions.length > 0) {
+            const dataToPost = latestVersions;
             await postToConfluence(dataToPost);
             res.json({ message: 'Data posted to Confluence successfully' });
         } else {
@@ -229,20 +237,19 @@ app.get('/postToConfluence', async (req, res) => {
     }
 });
 
-app.get('/mae/getBuild', (req, res) => {
+app.get("/mae/getBuild", (req, res) => {
     const query = 'SELECT * FROM maebuildinfo';
     executeQuery(query)
         .then(results => res.json(results))
-        .catch(err => {
-            console.error('Error fetching build details:', err);
-            res.status(500).json({ error: 'Error fetching build details' });
-        });
+        .catch(err => res.status(500).json({ error: 'Error fetching build details' }));
 });
 
+// GET endpoint to fetch build details by applicationName
 app.get('/mae/getBuild/:applicationName', (req, res) => {
-    const { applicationName } = req.params;
-    const query = `SELECT * FROM maebuildinfo WHERE ApplicationName=${mysql.escape(applicationName)} ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC`;
-    executeQuery(query)
+    const applicationName = req.params.applicationName;
+    const query = 'SELECT * FROM maebuildinfo WHERE ApplicationName = ? ORDER BY STR_TO_DATE(Date_Time, \'%d/%m/%Y %H:%i:%s\') DESC';
+    
+    executeQuery(query, [applicationName])
         .then(results => {
             if (results.length > 0) {
                 res.json(results);
@@ -256,7 +263,7 @@ app.get('/mae/getBuild/:applicationName', (req, res) => {
         });
 });
 
-pool.query('SELECT 1', (err, results) => {
+pool.query('SELECT 1', (err) => {
     if (err) {
         console.error('Error connecting to the database:', err);
     } else {
