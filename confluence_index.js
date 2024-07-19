@@ -26,6 +26,7 @@ const executeQuery = (query, params) => {
     return new Promise((resolve, reject) => {
         pool.query(query, params, (err, results) => {
             if (err) {
+                console.error('Database query error:', err);
                 reject(err);
             } else {
                 resolve(results);
@@ -40,7 +41,7 @@ const pageId = 2464689130; // Confluence page ID
 
 const fetchPageContent = async () => {
     try {
-        const response = await fetch(${confluenceUrl}/${pageId}?expand=body.storage, {
+        const response = await fetch(`${confluenceUrl}/${pageId}?expand=body.storage`, {
             headers: {
                 'Authorization': auth,
                 'Content-Type': 'application/json'
@@ -48,7 +49,7 @@ const fetchPageContent = async () => {
         });
 
         if (!response.ok) {
-            throw new Error(HTTP error! status: ${response.status});
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const result = await response.json();
@@ -63,7 +64,7 @@ const fetchPageContent = async () => {
 
 const getConfluencePageVersion = async () => {
     try {
-        const response = await fetch(${confluenceUrl}/${pageId}?expand=version, {
+        const response = await fetch(`${confluenceUrl}/${pageId}?expand=version`, {
             headers: {
                 'Authorization': auth,
                 'Content-Type': 'application/json'
@@ -71,7 +72,7 @@ const getConfluencePageVersion = async () => {
         });
 
         if (!response.ok) {
-            throw new Error(HTTP error! status: ${response.status});
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const result = await response.json();
@@ -86,7 +87,7 @@ const getLatestVersions = (data) => {
     const latestVersionsMap = new Map();
 
     data.forEach(item => {
-        const key = ${item.ApplicationName}-${item.TargetEnvironment};
+        const key = `${item.ApplicationName}-${item.TargetEnvironment}`;
         const existingItem = latestVersionsMap.get(key);
 
         if (!existingItem || convertDate(item.Date_Time) > convertDate(existingItem.Date_Time)) {
@@ -141,7 +142,7 @@ const postToConfluence = async (data) => {
         const headingIndex = match.index + match[0].length;
 
         // Insert the table below the "Version Control" heading
-        const newContent = ${currentContent.slice(0, headingIndex)}
+        const newContent = `${currentContent.slice(0, headingIndex)}
         <table>
             <tr>
                 <th>Application Name</th>
@@ -153,7 +154,7 @@ const postToConfluence = async (data) => {
                 <th>Date and Time</th>
             </tr>
             ${data.map(item => 
-                <tr>
+                `<tr>
                     <td>${item.ApplicationName || ''}</td>
                     <td>${item.TargetEnvironment || ''}</td>
                     <td>${item.Version || ''}</td>
@@ -161,10 +162,10 @@ const postToConfluence = async (data) => {
                     <td>${item.JiraTaskId || ''}</td>
                     <td>${item.ReleaseNotes || ''}</td>
                     <td>${item.Date_Time || ''}</td>
-                </tr>
+                </tr>`
             ).join('')}
         </table>
-        ${currentContent.slice(headingIndex)};
+        ${currentContent.slice(headingIndex)}`;
 
         // Construct the request body for Confluence
         const requestBody = {
@@ -182,7 +183,7 @@ const postToConfluence = async (data) => {
         console.log('Request Body:', JSON.stringify(requestBody, null, 2));
 
         // Post the data to Confluence
-        const updateResponse = await fetch(${confluenceUrl}/${pageId}, {
+        const updateResponse = await fetch(`${confluenceUrl}/${pageId}`, {
             method: 'PUT',
             headers: {
                 'Authorization': auth,
@@ -193,7 +194,7 @@ const postToConfluence = async (data) => {
 
         const text = await updateResponse.text();
         if (!updateResponse.ok) {
-            throw new Error(HTTP error! status: ${updateResponse.status}, message: ${text});
+            throw new Error(`HTTP error! status: ${updateResponse.status}, message: ${text}`);
         }
 
         const updateResult = JSON.parse(text);
@@ -207,9 +208,13 @@ const postToConfluence = async (data) => {
 
 app.get('/postToConfluence', async (req, res) => {
     try {
+        console.log('Fetching build details...');
         const query = 'SELECT * FROM maebuildinfo';
         const dbResults = await executeQuery(query);
+        console.log('Database results:', dbResults);
+
         const results = getLatestVersions(dbResults);
+        console.log('Latest versions:', results);
 
         if (results.length > 0) {
             const dataToPost = results;
@@ -228,12 +233,15 @@ app.get('/mae/getBuild', (req, res) => {
     const query = 'SELECT * FROM maebuildinfo';
     executeQuery(query)
         .then(results => res.json(results))
-        .catch(err => res.status(500).json({ error: 'Error fetching build details' }));
+        .catch(err => {
+            console.error('Error fetching build details:', err);
+            res.status(500).json({ error: 'Error fetching build details' });
+        });
 });
 
 app.get('/mae/getBuild/:applicationName', (req, res) => {
     const { applicationName } = req.params;
-    const query = SELECT * FROM maebuildinfo WHERE ApplicationName=${mysql.escape(applicationName)} ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC;
+    const query = `SELECT * FROM maebuildinfo WHERE ApplicationName=${mysql.escape(applicationName)} ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC`;
     executeQuery(query)
         .then(results => {
             if (results.length > 0) {
@@ -257,5 +265,5 @@ pool.query('SELECT 1', (err, results) => {
 });
 
 app.listen(port, () => {
-    console.log(Server is running on http://localhost:${port});
+    console.log(`Server is running on http://localhost:${port}`);
 });
