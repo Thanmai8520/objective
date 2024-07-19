@@ -128,32 +128,20 @@ const postToConfluence = async (data) => {
         const newVersion = currentVersion + 1;
 
         // Fetch the current content
-        const response = await fetch(`${confluenceUrl}/${pageId}?expand=body.storage`, {
-            headers: {
-                'Authorization': auth,
-                'Content-Type': 'application/json'
-            }
-        });
+        const currentContent = await fetchPageContent(); // Use the updated fetchPageContent function
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        // Locate the "Version Control" heading using a flexible approach
+        const versionControlHeadingRegex = /<h[1-6][^>]*>\s*Version Control\s*<\/h[1-6]>/i;
+        const match = currentContent.match(versionControlHeadingRegex);
 
-        const result = await response.json();
-        const currentContent = result.body.storage.value;
-
-        // Locate the "Version Control" heading
-        const headingTag = '<h1>Version Control</h1>';
-        const versionControlIndex = currentContent.indexOf(headingTag);
-        if (versionControlIndex === -1) {
+        if (!match) {
             throw new Error('Version Control heading not found in the page content');
         }
 
-        // Calculate the end of the heading to position the table right after it
-        const endOfHeadingIndex = versionControlIndex + headingTag.length;
+        const headingIndex = match.index + match[0].length;
 
         // Insert the table below the "Version Control" heading
-        const newContent = `${currentContent.slice(0, endOfHeadingIndex)}
+        const newContent = `${currentContent.slice(0, headingIndex)}
         <table>
             <tr>
                 <th>Application Name</th>
@@ -164,8 +152,8 @@ const postToConfluence = async (data) => {
                 <th>Release Notes</th>
                 <th>Date and Time</th>
             </tr>
-            ${data.map(item => `
-                <tr>
+            ${data.map(item => 
+                `<tr>
                     <td>${item.ApplicationName || ''}</td>
                     <td>${item.TargetEnvironment || ''}</td>
                     <td>${item.Version || ''}</td>
@@ -173,10 +161,10 @@ const postToConfluence = async (data) => {
                     <td>${item.JiraTaskId || ''}</td>
                     <td>${item.ReleaseNotes || ''}</td>
                     <td>${item.Date_Time || ''}</td>
-                </tr>
-            `).join('')}
+                </tr>`
+            ).join('')}
         </table>
-        ${currentContent.slice(endOfHeadingIndex)}`;
+        ${currentContent.slice(headingIndex)}`;
 
         // Construct the request body for Confluence
         const requestBody = {
@@ -236,23 +224,28 @@ app.get('/postToConfluence', async (req, res) => {
     }
 });
 
-app.get('/mae/getBuild/:applicationName', async (req, res) => {
+app.get('/mae/getBuild', (req, res) => {
+    const query = 'SELECT * FROM maebuildinfo';
+    executeQuery(query)
+        .then(results => res.json(results))
+        .catch(err => res.status(500).json({ error: 'Error fetching build details' }));
+});
+
+app.get('/mae/getBuild/:applicationName', (req, res) => {
     const { applicationName } = req.params;
-
-    try {
-        const query = 'SELECT * FROM maebuildinfo WHERE ApplicationName = ?';
-        const results = await executeQuery(query, [applicationName]);
-
-        if (results.length > 0) {
-            const latestResult = getLatestVersions(results);
-            res.json(latestResult);
-        } else {
-            res.status(404).json({ message: 'Build details not found for the application name' });
-        }
-    } catch (err) {
-        console.error('Error fetching build details:', err);
-        res.status(500).json({ error: 'Error fetching build details' });
-    }
+    const query = `SELECT * FROM maebuildinfo WHERE ApplicationName=${mysql.escape(applicationName)} ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC`;
+    executeQuery(query)
+        .then(results => {
+            if (results.length > 0) {
+                res.json(results);
+            } else {
+                res.status(404).json({ message: 'Build details not found for the application name' });
+            }
+        })
+        .catch(err => {
+            console.error('Error fetching build details:', err);
+            res.status(500).json({ error: 'Error fetching build details' });
+        });
 });
 
 pool.query('SELECT 1', (err, results) => {
@@ -264,6 +257,5 @@ pool.query('SELECT 1', (err, results) => {
 });
 
 app.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
+    console.log(`Server is running on http://localhost:${port}`);
 });
-
