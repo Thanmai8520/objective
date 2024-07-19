@@ -128,82 +128,55 @@ const postToConfluence = async (data) => {
         const newVersion = currentVersion + 1;
 
         // Fetch the current content
-        const currentContent = await fetchPageContent();
+        const response = await fetch(`${confluenceUrl}/${pageId}?expand=body.storage`, {
+            headers: {
+                'Authorization': auth,
+                'Content-Type': 'application/json'
+            }
+        });
 
-        // Locate the "Version Control" heading using a flexible approach
-        const versionControlHeadingRegex = /<h[1-6][^>]*>\s*Version Control\s*<\/h[1-6]>/i;
-        const match = currentContent.match(versionControlHeadingRegex);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
-        if (!match) {
+        const result = await response.json();
+        const currentContent = result.body.storage.value;
+
+        // Locate the "Version Control" heading
+        const headingTag = '<h1>Version Control</h1>';
+        const versionControlIndex = currentContent.indexOf(headingTag);
+        if (versionControlIndex === -1) {
             throw new Error('Version Control heading not found in the page content');
         }
 
-        const headingIndex = match.index + match[0].length;
-        const postHeadingIndex = headingIndex + 1;
+        // Calculate the end of the heading to position the table right after it
+        const endOfHeadingIndex = versionControlIndex + headingTag.length;
 
-        // Filter data to include only the latest entry for each application
-        const latestData = getLatestVersions(data);
-
-        // Find the existing table and replace its content
-        const existingTableRegex = /<table[^>]*>([\s\S]*?)<\/table>/i;
-        let updatedContent;
-
-        if (currentContent.match(existingTableRegex)) {
-            const existingTableMatch = currentContent.match(existingTableRegex);
-            const existingTable = existingTableMatch[0];
-            const tableIndex = existingTableMatch.index;
-            const existingTableContent = existingTableMatch[1];
-
-            // Replace existing table content with new data
-            updatedContent = `${currentContent.slice(0, tableIndex)}<table>
+        // Insert the table below the "Version Control" heading
+        const newContent = `${currentContent.slice(0, endOfHeadingIndex)}
+        <table>
+            <tr>
+                <th>Application Name</th>
+                <th>Target Environment</th>
+                <th>Version</th>
+                <th>Release</th>
+                <th>Jira Task ID</th>
+                <th>Release Notes</th>
+                <th>Date and Time</th>
+            </tr>
+            ${data.map(item => `
                 <tr>
-                    <th>Application Name</th>
-                    <th>Target Environment</th>
-                    <th>Version</th>
-                    <th>Release</th>
-                    <th>Jira Task ID</th>
-                    <th>Release Notes</th>
-                    <th>Date and Time</th>
+                    <td>${item.ApplicationName || ''}</td>
+                    <td>${item.TargetEnvironment || ''}</td>
+                    <td>${item.Version || ''}</td>
+                    <td>${item.Release || ''}</td>
+                    <td>${item.JiraTaskId || ''}</td>
+                    <td>${item.ReleaseNotes || ''}</td>
+                    <td>${item.Date_Time || ''}</td>
                 </tr>
-                ${latestData.map(item => `
-                    <tr>
-                        <td>${item.ApplicationName || ''}</td>
-                        <td>${item.TargetEnvironment || ''}</td>
-                        <td>${item.Version || ''}</td>
-                        <td>${item.Release || ''}</td>
-                        <td>${item.JiraTaskId || ''}</td>
-                        <td>${item.ReleaseNotes || ''}</td>
-                        <td>${item.Date_Time || ''}</td>
-                    </tr>
-                `).join('')}
-            </table>${currentContent.slice(tableIndex + existingTable.length)}`;
-        } else {
-            // If no table exists, insert a new one
-            updatedContent = `${currentContent.slice(0, postHeadingIndex)}
-            <table>
-                <tr>
-                    <th>Application Name</th>
-                    <th>Target Environment</th>
-                    <th>Version</th>
-                    <th>Release</th>
-                    <th>Jira Task ID</th>
-                    <th>Release Notes</th>
-                    <th>Date and Time</th>
-                </tr>
-                ${latestData.map(item => `
-                    <tr>
-                        <td>${item.ApplicationName || ''}</td>
-                        <td>${item.TargetEnvironment || ''}</td>
-                        <td>${item.Version || ''}</td>
-                        <td>${item.Release || ''}</td>
-                        <td>${item.JiraTaskId || ''}</td>
-                        <td>${item.ReleaseNotes || ''}</td>
-                        <td>${item.Date_Time || ''}</td>
-                    </tr>
-                `).join('')}
-            </table>
-            ${currentContent.slice(postHeadingIndex)}`;
-        }
+            `).join('')}
+        </table>
+        ${currentContent.slice(endOfHeadingIndex)}`;
 
         // Construct the request body for Confluence
         const requestBody = {
@@ -212,7 +185,7 @@ const postToConfluence = async (data) => {
             type: 'page',
             body: {
                 storage: {
-                    value: updatedContent,
+                    value: newContent,
                     representation: 'storage'
                 }
             }
@@ -279,6 +252,14 @@ app.get('/mae/getBuild/:applicationName', async (req, res) => {
     } catch (err) {
         console.error('Error fetching build details:', err);
         res.status(500).json({ error: 'Error fetching build details' });
+    }
+});
+
+pool.query('SELECT 1', (err, results) => {
+    if (err) {
+        console.error('Error connecting to the database:', err);
+    } else {
+        console.log('Connected to the database');
     }
 });
 
