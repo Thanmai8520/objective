@@ -154,14 +154,18 @@ const postToConfluence = async (data) => {
         const result = await response.json();
         const currentContent = result.body.storage.value;
 
-        // Locate the "Version Control" heading
-        const versionControlIndex = currentContent.indexOf('<h1>Version Control</h1>');
-        if (versionControlIndex === -1) {
+        // Locate the "Version Control" heading using a regular expression
+        const versionControlHeadingRegex = /<h1[^>]*>Version Control<\/h1>/i;
+        const match = currentContent.match(versionControlHeadingRegex);
+
+        if (!match) {
             throw new Error('Version Control heading not found in the page content');
         }
 
+        const versionControlIndex = match.index + match[0].length;
+
         // Insert the table below the "Version Control" heading
-        const newContent = `${currentContent.slice(0, versionControlIndex + 23)}
+        const newContent = `${currentContent.slice(0, versionControlIndex)}
         <table>
             <tr>
                 <th>Application Name</th>
@@ -184,7 +188,7 @@ const postToConfluence = async (data) => {
                 </tr>
             `).join('')}
         </table>
-        ${currentContent.slice(versionControlIndex + 23)}`;
+        ${currentContent.slice(versionControlIndex)}`;
 
         // Construct the request body for Confluence
         const requestBody = {
@@ -224,6 +228,7 @@ const postToConfluence = async (data) => {
         throw error; // Throw the error to be handled by the caller
     }
 };
+
 
 app.get('/mae/getBuild', (req, res) => {
     const query = 'SELECT * FROM maebuildinfo';
