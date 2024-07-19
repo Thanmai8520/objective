@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql');
-const fs = require('fs');
 const fetch = require('node-fetch');
 
 const app = express();
@@ -16,12 +15,6 @@ process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0';
 
 app.disable('etag');
 
-// Define Confluence API URL and Authentication
-const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
-const auth = 'Bearer OTEMMTIxNTc3Mzg0OTa91VBrtK5WCZ]bsEyQH+mhgqgm'; // Personal access token
-const pageId = 2464689130; // Confluence page ID
-
-// Define MySQL connection pool
 const pool = mysql.createPool({
     host: '28.20.136.141',
     user: 'root',
@@ -42,6 +35,10 @@ const executeQuery = (query, params) => {
     });
 };
 
+const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
+const auth = "Bearer OTEMMTIxNTc3Mzg30ta91VBrtK5WCZ]bsEyQH+mhgqgm"; // Personal access token
+const pageId = 2464689130; // Confluence page ID
+
 const fetchPageVersion = async (pageId, auth) => {
     const url = `${confluenceUrl}/${pageId}`;
     try {
@@ -52,28 +49,34 @@ const fetchPageVersion = async (pageId, auth) => {
                 'Content-Type': 'application/json'
             }
         });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorText}`);
+        }
         const result = await response.json();
-        return result.version.number; // Return the current version number
+        return result.version.number;
     } catch (error) {
-        console.error('Error fetching page version:', error);
+        console.error('Error fetching page version:', error.message);
         throw error;
     }
 };
 
 const getConfluencePageVersion = async () => {
+    const url = `${confluenceUrl}/${pageId}?expand=version`;
     try {
-        const response = await fetch(`${confluenceUrl}/${pageId}?expand=version`, {
+        const response = await fetch(url, {
             headers: {
                 'Authorization': auth
             }
         });
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorText = await response.text();
+            throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorText}`);
         }
         const result = await response.json();
         return result.version.number;
     } catch (error) {
-        console.error('Error fetching Confluence page version:', error);
+        console.error('Error fetching Confluence page version:', error.message);
         throw error;
     }
 };
@@ -119,19 +122,18 @@ app.get('/postToConfluence', async (req, res) => {
     const query = 'SELECT * FROM maebuildinfo';
 
     try {
-        const tres = await executeQuery(query);
-        const results = getLatestVersions(tres);
+        const results = await executeQuery(query);
+        const latestVersions = getLatestVersions(results);
 
-        console.log(results);
-        if (results.length > 0) {
-            const dataToPost = results;
-            await postToConfluence(dataToPost);
-            res.json({ message: 'Data posted to confluence successfully' });
+        console.log(latestVersions);
+        if (latestVersions.length > 0) {
+            await postToConfluence(latestVersions);
+            res.json({ message: 'Data posted to Confluence successfully' });
         } else {
             res.status(404).json({ message: "Build details not found for the application name" });
         }
     } catch (err) {
-        console.error('Error fetching build details or posting to confluence', err);
+        console.error('Error fetching build details or posting to Confluence:', err.message);
         res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
     }
 });
@@ -192,14 +194,14 @@ const postToConfluence = async (data) => {
         });
         const text = await response.text();
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
+            throw new Error(`HTTP error! Status: ${response.status}, Message: ${text}`);
         }
 
         const result = JSON.parse(text);
         console.log('Confluence response:', result);
         return result; // Return the result if needed
     } catch (error) {
-        console.error('Error posting to confluence:', error);
+        console.error('Error posting to Confluence:', error.message);
         throw error; // Throw the error to be handled by the caller
     }
 };
@@ -224,14 +226,14 @@ app.get("/mae/getBuild/:applicationName", (req, res) => {
             }
         })
         .catch(err => {
-            console.error('Error fetching build details:', err);
+            console.error('Error fetching build details:', err.message);
             res.status(500).json({ error: 'Error fetching build details' });
         });
 });
 
 pool.query('SELECT 1', (err, results) => {
     if (err) {
-        console.error('Error connecting to the database:', err);
+        console.error('Error connecting to the database:', err.message);
     } else {
         console.log("Connected to the database");
     }
