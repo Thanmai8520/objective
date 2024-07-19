@@ -128,7 +128,10 @@ const postToConfluence = async (data) => {
         const newVersion = currentVersion + 1;
 
         // Fetch the current content
-        const currentContent = await fetchPageContent(); // Use the updated fetchPageContent function
+        const currentContent = await fetchPageContent();
+
+        // Define a unique table identifier
+        const tableId = 'build-information-table';
 
         // Locate the "Version Control" heading using a flexible approach
         const versionControlHeadingRegex = /<h[1-6][^>]*>\s*Version Control\s*<\/h[1-6]>/i;
@@ -140,31 +143,37 @@ const postToConfluence = async (data) => {
 
         const headingIndex = match.index + match[0].length;
 
-        // Insert the table below the "Version Control" heading
-        const newContent = `${currentContent.slice(0, headingIndex)}
-        <table>
-            <tr>
-                <th>Application Name</th>
-                <th>Target Environment</th>
-                <th>Version</th>
-                <th>Release</th>
-                <th>Jira Task ID</th>
-                <th>Release Notes</th>
-                <th>Date and Time</th>
-            </tr>
-            ${data.map(item => 
-                `<tr>
-                    <td>${item.ApplicationName || ''}</td>
-                    <td>${item.TargetEnvironment || ''}</td>
-                    <td>${item.Version || ''}</td>
-                    <td>${item.Release || ''}</td>
-                    <td>${item.JiraTaskId || ''}</td>
-                    <td>${item.ReleaseNotes || ''}</td>
-                    <td>${item.Date_Time || ''}</td>
-                </tr>`
-            ).join('')}
-        </table>
-        ${currentContent.slice(headingIndex)}`;
+        // Define the new table HTML
+        const newTableHtml = `
+            <table id="${tableId}">
+                <tr>
+                    <th>Application Name</th>
+                    <th>Target Environment</th>
+                    <th>Version</th>
+                    <th>Release</th>
+                    <th>Jira Task ID</th>
+                    <th>Release Notes</th>
+                    <th>Date and Time</th>
+                </tr>
+                ${data.map(item => 
+                    `<tr>
+                        <td>${item.ApplicationName || ''}</td>
+                        <td>${item.TargetEnvironment || ''}</td>
+                        <td>${item.Version || ''}</td>
+                        <td>${item.Release || ''}</td>
+                        <td>${item.JiraTaskId || ''}</td>
+                        <td>${item.ReleaseNotes || ''}</td>
+                        <td>${item.Date_Time || ''}</td>
+                    </tr>`
+                ).join('')}
+            </table>`;
+
+        // Replace the existing table with the new table
+        const tableRegex = new RegExp(`<table id="${tableId}">.*?</table>`, 's');
+        const updatedContent = currentContent.replace(tableRegex, newTableHtml);
+
+        // If the table does not exist, append it
+        const finalContent = updatedContent.includes(newTableHtml) ? updatedContent : `${currentContent.slice(0, headingIndex)}${newTableHtml}${currentContent.slice(headingIndex)}`;
 
         // Construct the request body for Confluence
         const requestBody = {
@@ -173,7 +182,7 @@ const postToConfluence = async (data) => {
             type: 'page',
             body: {
                 storage: {
-                    value: newContent,
+                    value: finalContent,
                     representation: 'storage'
                 }
             }
@@ -252,10 +261,4 @@ pool.query('SELECT 1', (err, results) => {
     if (err) {
         console.error('Error connecting to the database:', err);
     } else {
-        console.log('Connected to the database');
-    }
-});
-
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
-});
+        console.log('Connected to the database
