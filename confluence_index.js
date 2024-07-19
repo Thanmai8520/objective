@@ -199,6 +199,8 @@ const postToConfluence = async (data) => {
             }
         };
 
+        console.log('Request Body:', JSON.stringify(requestBody, null, 2));
+
         // Post the data to Confluence
         const updateResponse = await fetch(`${confluenceUrl}/${pageId}`, {
             method: 'PUT',
