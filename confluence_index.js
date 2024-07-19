@@ -130,56 +130,26 @@ const postToConfluence = async (data) => {
         // Fetch the current content
         const currentContent = await fetchPageContent();
 
-        // Locate the "Version Control" heading using a flexible approach
+        // Locate the "Version Control" heading and the existing table
         const versionControlHeadingRegex = /<h[1-6][^>]*>\s*Version Control\s*<\/h[1-6]>/i;
-        const match = currentContent.match(versionControlHeadingRegex);
+        const tableRegex = /<table[^>]*>([\s\S]*?)<\/table>/i;
 
-        if (!match) {
+        const headingMatch = currentContent.match(versionControlHeadingRegex);
+        if (!headingMatch) {
             throw new Error('Version Control heading not found in the page content');
         }
 
-        const headingIndex = match.index + match[0].length;
-        const postHeadingIndex = headingIndex + 1;
+        const headingIndex = headingMatch.index + headingMatch[0].length;
+        const tableMatch = currentContent.match(tableRegex);
 
-        // Filter data to include only the latest entry for each application
-        const latestData = getLatestVersions(data);
-
-        // Find the existing table and replace its content
-        const existingTableRegex = /<table[^>]*>([\s\S]*?)<\/table>/i;
         let updatedContent;
+        if (tableMatch) {
+            const oldTable = tableMatch[0];
+            const oldTableContent = tableMatch[1];
+            const tableIndex = tableMatch.index;
 
-        if (currentContent.match(existingTableRegex)) {
-            const existingTableMatch = currentContent.match(existingTableRegex);
-            const existingTable = existingTableMatch[0];
-            const tableIndex = existingTableMatch.index;
-            const existingTableContent = existingTableMatch[1];
-
-            // Replace existing table content with new data
-            updatedContent = `${currentContent.slice(0, tableIndex)}<table>
-                <tr>
-                    <th>Application Name</th>
-                    <th>Target Environment</th>
-                    <th>Version</th>
-                    <th>Release</th>
-                    <th>Jira Task ID</th>
-                    <th>Release Notes</th>
-                    <th>Date and Time</th>
-                </tr>
-                ${latestData.map(item => `
-                    <tr>
-                        <td>${item.ApplicationName || ''}</td>
-                        <td>${item.TargetEnvironment || ''}</td>
-                        <td>${item.Version || ''}</td>
-                        <td>${item.Release || ''}</td>
-                        <td>${item.JiraTaskId || ''}</td>
-                        <td>${item.ReleaseNotes || ''}</td>
-                        <td>${item.Date_Time || ''}</td>
-                    </tr>
-                `).join('')}
-            </table>${currentContent.slice(tableIndex + existingTable.length)}`;
-        } else {
-            // If no table exists, insert a new one
-            updatedContent = `${currentContent.slice(0, postHeadingIndex)}
+            // Replace the old table with the new table
+            updatedContent = `${currentContent.slice(0, tableIndex)}
             <table>
                 <tr>
                     <th>Application Name</th>
@@ -190,7 +160,7 @@ const postToConfluence = async (data) => {
                     <th>Release Notes</th>
                     <th>Date and Time</th>
                 </tr>
-                ${latestData.map(item => `
+                ${data.map(item => `
                     <tr>
                         <td>${item.ApplicationName || ''}</td>
                         <td>${item.TargetEnvironment || ''}</td>
@@ -202,7 +172,33 @@ const postToConfluence = async (data) => {
                     </tr>
                 `).join('')}
             </table>
-            ${currentContent.slice(postHeadingIndex)}`;
+            ${currentContent.slice(tableIndex + oldTable.length)}`;
+        } else {
+            // If no table exists, insert a new one
+            updatedContent = `${currentContent.slice(0, headingIndex)}
+            <table>
+                <tr>
+                    <th>Application Name</th>
+                    <th>Target Environment</th>
+                    <th>Version</th>
+                    <th>Release</th>
+                    <th>Jira Task ID</th>
+                    <th>Release Notes</th>
+                    <th>Date and Time</th>
+                </tr>
+                ${data.map(item => `
+                    <tr>
+                        <td>${item.ApplicationName || ''}</td>
+                        <td>${item.TargetEnvironment || ''}</td>
+                        <td>${item.Version || ''}</td>
+                        <td>${item.Release || ''}</td>
+                        <td>${item.JiraTaskId || ''}</td>
+                        <td>${item.ReleaseNotes || ''}</td>
+                        <td>${item.Date_Time || ''}</td>
+                    </tr>
+                `).join('')}
+            </table>
+            ${currentContent.slice(headingIndex)}`;
         }
 
         // Construct the request body for Confluence
@@ -263,25 +259,38 @@ app.get('/postToConfluence', async (req, res) => {
     }
 });
 
-app.get('/mae/getBuild/:applicationName', async (req, res) => {
+app.get('/mae/getBuild', (req, res) => {
+    const query = 'SELECT * FROM maebuildinfo';
+    executeQuery(query)
+        .then(results => res.json(results))
+        .catch(err => res.status(500).json({ error: 'Error fetching build details' }));
+});
+
+app.get('/mae/getBuild/:applicationName', (req, res) => {
     const { applicationName } = req.params;
+    const query = `SELECT * FROM maebuildinfo WHERE ApplicationName=${mysql.escape(applicationName)} ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC`;
+    executeQuery(query)
+        .then(results => {
+            if (results.length > 0) {
+                res.json(results);
+            } else {
+                res.status(404).json({ message: 'Build details not found for the application name' });
+            }
+        })
+        .catch(err => {
+            console.error('Error fetching build details:', err);
+            res.status(500).json({ error: 'Error fetching build details' });
+        });
+});
 
-    try {
-        const query = 'SELECT * FROM maebuildinfo WHERE ApplicationName = ?';
-        const results = await executeQuery(query, [applicationName]);
-
-        if (results.length > 0) {
-            const latestResult = getLatestVersions(results);
-            res.json(latestResult);
-        } else {
-            res.status(404).json({ message: 'Build details not found for the application name' });
-        }
-    } catch (err) {
-        console.error('Error fetching build details:', err);
-        res.status(500).json({ error: 'Error fetching build details' });
+pool.query('SELECT 1', (err, results) => {
+    if (err) {
+        console.error('Error connecting to the database:', err);
+    } else {
+        console.log('Connected to the database');
     }
 });
 
 app.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
+    console.log(`Server is running on http://localhost:${port}`);
 });
