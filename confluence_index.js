@@ -2,19 +2,20 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql');
 const fetch = require('node-fetch');
+
 const app = express();
 const port = 3000;
 
 app.use(cors()); // Enable CORS
+
 console.log("Server Started..");
 
-// Ignore certificates for development purposes only
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'; // Ignore certificates for development purposes only
 
 app.disable('etag');
 
 const pool = mysql.createPool({
-    host: "28.20.136.141",
+    host: '28.20.136.141',
     user: 'root',
     password: 'Tibleau',
     database: 'mortgages_sv',
@@ -33,34 +34,40 @@ const executeQuery = (query, params) => {
     });
 };
 
-const fetchPageVersion = async (pageId, auth) => {
-    const confluenceUrl = `https://confluence.barcapint.com/rest/api/content/${pageId}`;
+const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
+const auth = 'Bearer OTEMMTIxNTc3Mzg30ta91VBrtK5WCZ]bsEyQH+mhgqgm'; // Personal access token
+const pageId = 2464689130; // Confluence page ID
+const spaceKey = 'G01515269';
 
+const fetchPageContent = async () => {
     try {
-        const response = await fetch(confluenceUrl, {
-            method: 'GET',
+        const response = await fetch(`${confluenceUrl}/${pageId}?expand=body.storage`, {
             headers: {
                 'Authorization': auth,
                 'Content-Type': 'application/json'
             }
         });
 
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const result = await response.json();
-        return result.version.number; // Return the current version number
+        console.log('Current Page Content:', result.body.storage.value); // Print the current content
+        return result.body.storage.value;
     } catch (error) {
-        console.error('Error fetching page version:', error);
+        console.error('Error fetching page content:', error);
         throw error;
     }
 };
 
-const confluenceUrl = 'https://confluence.barcapint.com/rest/api/content';
-const auth = "Bearer OTEMMTIxNTc3Mzg30ta91VBrtK5WCZ]bsEyQH+mhgqgm"; // Personal access token
-const pageId = 2464689130; // Confluence page ID
-
 const getConfluencePageVersion = async () => {
     try {
         const response = await fetch(`${confluenceUrl}/${pageId}?expand=version`, {
-            headers: { "Authorization": auth }
+            headers: {
+                'Authorization': auth,
+                'Content-Type': 'application/json'
+            }
         });
 
         if (!response.ok) {
@@ -92,47 +99,28 @@ const getLatestVersions = (data) => {
 
 const convertDate = (dateString) => {
     if (typeof dateString !== 'string') {
-        console.error('Invalid Date Time format:', dateString);
+        console.error("Invalid Date Time format:", dateString);
         return 0; // Handle undefined, null, or invalid format
     }
 
     const parts = dateString.split(' ');
+
     if (parts.length !== 2) {
-        console.error('Invalid Date Time format:', dateString);
+        console.error("Invalid Date Time format:", dateString);
         return 0; // Handle unexpected format
     }
 
     const dateParts = parts[0].split('/');
     const timeParts = parts[1].split(':');
+
     if (dateParts.length !== 3 || timeParts.length !== 3) {
-        console.error('Invalid Date Time format:', dateString);
+        console.error("Invalid Date Time format:", dateString);
         return 0; // Handle unexpected format
     }
 
     const formattedDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0], timeParts[0], timeParts[1], timeParts[2]);
     return formattedDate.getTime(); // Return milliseconds for comparison
 };
-
-app.get('/postToConfluence', async (req, res) => {
-    const query = 'SELECT * FROM maebuildinfo';
-
-    try {
-        const dbResults = await executeQuery(query);
-        const results = getLatestVersions(dbResults);
-
-        console.log(results);
-        if (results.length > 0) {
-            const dataToPost = results;
-            await postToConfluence(dataToPost);
-            res.json({ message: 'Data posted to Confluence successfully' });
-        } else {
-            res.status(404).json({ message: "Build details not found for the application name" });
-        }
-    } catch (err) {
-        console.error('Error fetching build details or posting to Confluence:', err);
-        res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
-    }
-});
 
 const postToConfluence = async (data) => {
     try {
@@ -154,8 +142,10 @@ const postToConfluence = async (data) => {
         const result = await response.json();
         const currentContent = result.body.storage.value;
 
-        // Locate the "Version Control" heading using a regular expression
-        const versionControlHeadingRegex = /<h1[^>]*>Version Control<\/h1>/i;
+        console.log('Current Page Content:', currentContent); // Print the current content
+
+        // Locate the "Version Control" heading using a flexible approach
+        const versionControlHeadingRegex = /<h1[^>]*>\s*Version Control\s*<\/h1>/i;
         const match = currentContent.match(versionControlHeadingRegex);
 
         if (!match) {
@@ -229,6 +219,24 @@ const postToConfluence = async (data) => {
     }
 };
 
+app.get('/postToConfluence', async (req, res) => {
+    try {
+        const query = 'SELECT * FROM maebuildinfo';
+        const dbResults = await executeQuery(query);
+        const results = getLatestVersions(dbResults);
+
+        if (results.length > 0) {
+            const dataToPost = results;
+            await postToConfluence(dataToPost);
+            res.json({ message: 'Data posted to Confluence successfully' });
+        } else {
+            res.status(404).json({ message: 'Build details not found for the application name' });
+        }
+    } catch (err) {
+        console.error('Error fetching build details or posting to Confluence:', err);
+        res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
+    }
+});
 
 app.get('/mae/getBuild', (req, res) => {
     const query = 'SELECT * FROM maebuildinfo';
@@ -239,8 +247,7 @@ app.get('/mae/getBuild', (req, res) => {
 
 app.get('/mae/getBuild/:applicationName', (req, res) => {
     const { applicationName } = req.params;
-    const query = `SELECT * FROM maebuildinfo WHERE ApplicationName = ${mysql.escape(applicationName)} ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC`;
-
+    const query = `SELECT * FROM maebuildinfo WHERE ApplicationName=${mysql.escape(applicationName)} ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC`;
     executeQuery(query)
         .then(results => {
             if (results.length > 0) {
@@ -259,7 +266,7 @@ pool.query('SELECT 1', (err, results) => {
     if (err) {
         console.error('Error connecting to the database:', err);
     } else {
-        console.log("Connected to the database");
+        console.log('Connected to the database');
     }
 });
 
