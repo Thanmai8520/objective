@@ -48,18 +48,21 @@ const fetchPageContent = async () => {
         });
 
         if (!response.ok) {
+            const text = await response.text();
+            console.error(`HTTP error! status: ${response.status}, message: ${text}`);
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const result = await response.json();
         const content = result.body.storage.value;
-        console.log('Current Page Content:', content); // Print the current content
+        console.log('Current Page Content:', content);
         return content;
     } catch (error) {
         console.error('Error fetching page content:', error);
         throw error;
     }
 };
+
 
 const getConfluencePageVersion = async () => {
     try {
