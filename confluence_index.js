@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql');
 const fetch = require('node-fetch');
+const cheerio = require('cheerio');
 
 const app = express();
 const port = 3000;
@@ -130,76 +131,50 @@ const postToConfluence = async (data) => {
         // Fetch the current content
         const currentContent = await fetchPageContent();
 
-        // Locate the "Version Control" heading and the existing table
-        const versionControlHeadingRegex = /<h[1-6][^>]*>\s*Version Control\s*<\/h[1-6]>/i;
-        const tableRegex = /<table[^>]*>([\s\S]*?)<\/table>/i;
+        // Load the HTML content with cheerio
+        const $ = cheerio.load(currentContent);
 
-        const headingMatch = currentContent.match(versionControlHeadingRegex);
-        if (!headingMatch) {
+        // Use the provided heading to locate the "Version Control" section
+        const versionControlHeading = $('h3').filter(function () {
+            return $(this).html().trim() === '<strong>Version Control</strong>';
+        });
+
+        if (versionControlHeading.length === 0) {
             throw new Error('Version Control heading not found in the page content');
         }
 
-        const headingIndex = headingMatch.index + headingMatch[0].length;
-        const tableMatch = currentContent.match(tableRegex);
+        // Remove any existing table under the "Version Control" heading
+        versionControlHeading.nextUntil('h3').filter('table').remove();
 
-        let updatedContent;
-        if (tableMatch) {
-            const oldTable = tableMatch[0];
-            const oldTableContent = tableMatch[1];
-            const tableIndex = tableMatch.index;
+        // Create a new table
+        const table = $('<table></table>').append(
+            '<tr>' +
+            '<th>Application Name</th>' +
+            '<th>Target Environment</th>' +
+            '<th>Version</th>' +
+            '<th>Release</th>' +
+            '<th>Jira Task ID</th>' +
+            '<th>Release Notes</th>' +
+            '<th>Date and Time</th>' +
+            '</tr>'
+        );
 
-            // Replace the old table with the new table
-            updatedContent = `${currentContent.slice(0, tableIndex)}
-            <table>
-                <tr>
-                    <th>Application Name</th>
-                    <th>Target Environment</th>
-                    <th>Version</th>
-                    <th>Release</th>
-                    <th>Jira Task ID</th>
-                    <th>Release Notes</th>
-                    <th>Date and Time</th>
-                </tr>
-                ${data.map(item => `
-                    <tr>
-                        <td>${item.ApplicationName || ''}</td>
-                        <td>${item.TargetEnvironment || ''}</td>
-                        <td>${item.Version || ''}</td>
-                        <td>${item.Release || ''}</td>
-                        <td>${item.JiraTaskId || ''}</td>
-                        <td>${item.ReleaseNotes || ''}</td>
-                        <td>${item.Date_Time || ''}</td>
-                    </tr>
-                `).join('')}
-            </table>
-            ${currentContent.slice(tableIndex + oldTable.length)}`;
-        } else {
-            // If no table exists, insert a new one
-            updatedContent = `${currentContent.slice(0, headingIndex)}
-            <table>
-                <tr>
-                    <th>Application Name</th>
-                    <th>Target Environment</th>
-                    <th>Version</th>
-                    <th>Release</th>
-                    <th>Jira Task ID</th>
-                    <th>Release Notes</th>
-                    <th>Date and Time</th>
-                </tr>
-                ${data.map(item => `
-                    <tr>
-                        <td>${item.ApplicationName || ''}</td>
-                        <td>${item.TargetEnvironment || ''}</td>
-                        <td>${item.Version || ''}</td>
-                        <td>${item.Release || ''}</td>
-                        <td>${item.JiraTaskId || ''}</td>
-                        <td>${item.ReleaseNotes || ''}</td>
-                        <td>${item.Date_Time || ''}</td>
-                    </tr>
-                `).join('')}
-            </table>
-            ${currentContent.slice(headingIndex)}`;
-        }
+        data.forEach(item => {
+            table.append(
+                `<tr>
+                    <td>${item.ApplicationName || ''}</td>
+                    <td>${item.TargetEnvironment || ''}</td>
+                    <td>${item.Version || ''}</td>
+                    <td>${item.Release || ''}</td>
+                    <td>${item.JiraTaskId || ''}</td>
+                    <td>${item.ReleaseNotes || ''}</td>
+                    <td>${item.Date_Time || ''}</td>
+                </tr>`
+            );
+        });
+
+        // Append the new table below the "Version Control" heading
+        versionControlHeading.after(table);
 
         // Construct the request body for Confluence
         const requestBody = {
@@ -208,7 +183,7 @@ const postToConfluence = async (data) => {
             type: 'page',
             body: {
                 storage: {
-                    value: updatedContent,
+                    value: $.html(),
                     representation: 'storage'
                 }
             }
