@@ -7,6 +7,7 @@ const app = express();
 const port = 3000;
 
 app.use(cors()); // Enable CORS
+app.use(express.json()); // Enable JSON parsing
 
 console.log("Server Started..");
 
@@ -142,7 +143,6 @@ const postToConfluence = async (data) => {
     const currentVersion = await getConfluencePageVersion();
     const newVersion = currentVersion + 1;
 
-    // Construct the request body for Confluence
     const requestBody = {
         version: { number: newVersion },
         title: 'Build Information',
@@ -192,17 +192,18 @@ const postToConfluence = async (data) => {
             },
             body: JSON.stringify(requestBody)
         });
-        const text = await response.text();
+
+        const responseBody = await response.text();
         if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}, Message: ${text}`);
+            throw new Error(`HTTP error! Status: ${response.status}, Message: ${responseBody}`);
         }
 
-        const result = JSON.parse(text);
+        const result = JSON.parse(responseBody);
         console.log('Confluence response:', result);
-        return result; // Return the result if needed
+        return result;
     } catch (error) {
         console.error('Error posting to Confluence:', error.message);
-        throw error; // Throw the error to be handled by the caller
+        throw error;
     }
 };
 
@@ -213,25 +214,24 @@ app.get("/mae/getBuild", (req, res) => {
         .catch(err => res.status(500).json({ error: 'Error fetching build details' }));
 });
 
-// GET endpoint to fetch build details by application name
-app.get("/mae/getBuild/:applicationName", (req, res) => {
+app.get("/mae/getBuild/:applicationName", async (req, res) => {
     const { applicationName } = req.params;
-    const query = `SELECT * FROM maebuildinfo WHERE ApplicationName=${mysql.escape(applicationName)} ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC`;
-    executeQuery(query)
-        .then(results => {
-            if (results.length > 0) {
-                res.json(results);
-            } else {
-                res.status(404).json({ message: 'Build details not found for the application name' });
-            }
-        })
-        .catch(err => {
-            console.error('Error fetching build details:', err.message);
-            res.status(500).json({ error: 'Error fetching build details' });
-        });
+    const query = `SELECT * FROM maebuildinfo WHERE ApplicationName = ? ORDER BY STR_TO_DATE(Date_Time, '%d/%m/%Y %H:%i:%s') DESC`;
+
+    try {
+        const results = await executeQuery(query, [applicationName]);
+        if (results.length > 0) {
+            res.json(results);
+        } else {
+            res.status(404).json({ message: 'Build details not found for the application name' });
+        }
+    } catch (err) {
+        console.error('Error fetching build details:', err.message);
+        res.status(500).json({ error: 'Error fetching build details' });
+    }
 });
 
-pool.query('SELECT 1', (err, results) => {
+pool.query('SELECT 1', (err) => {
     if (err) {
         console.error('Error connecting to the database:', err.message);
     } else {
