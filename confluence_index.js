@@ -105,6 +105,14 @@ const updateOrInsertTable = (content, data) => {
 const postToConfluence = async (data) => {
     try {
         const pageData = await getConfluencePageVersion(pageId, auth);
+        
+        // Add logging to check pageData structure
+        console.log('Page Data:', pageData);
+        
+        if (!pageData.version || typeof pageData.version.number !== 'number') {
+            throw new Error('Page version information is missing or invalid.');
+        }
+        
         const currentVersion = pageData.version.number;
         const content = pageData.body.storage.value;
 
@@ -149,6 +157,7 @@ const postToConfluence = async (data) => {
         throw error;
     }
 };
+
 
 const getLatestVersions = (data) => {
     const latestVersionsMap = new Map();
