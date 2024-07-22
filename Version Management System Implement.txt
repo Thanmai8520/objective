@@ -67,6 +67,8 @@ Challenges and Solutions
 Database Connectivity Issues: Increased connection timeout to handle delays and implemented error handling to manage connection failures.
 Data Filtering: Ensured the latest version details are fetched and displayed based on the date and time.
 Responsive Design: Used Bootstrap to create a responsive table and navigation bar, ensuring the navigation bar adapts to different screen sizes.
+Confluence API Connection: Faced difficulty connecting to Confluence through the API but resolved it using a personal token and space key.
+Adding Table to Confluence: Encountered challenges adding a table to an existing Confluence page under a specific heading, which was addressed by refining the API request and handling page structure.
 Future Enhancements
 Automated Updates: Complete the automation of posting to Confluence using scheduled jobs.
 Enhanced Filtering: Provide more advanced filtering options in the frontend.
