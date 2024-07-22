@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql');
 const fetch = require('node-fetch');
-const schedule = require('node-schedule'); // Scheduler package
+const schedule = require('node-schedule');
 
 const app = express();
 const port = 3000;
@@ -56,6 +56,14 @@ const getConfluencePageVersion = async (pageId, auth) => {
         }
 
         const result = await response.json();
+        
+        // Add logging to inspect the response structure
+        console.log('Confluence Page Response:', result);
+
+        if (!result.version || typeof result.version.number !== 'number') {
+            throw new Error('Page version information is missing or invalid.');
+        }
+
         return result;
     } catch (error) {
         console.error('Error fetching Confluence page version:', error);
@@ -105,14 +113,6 @@ const updateOrInsertTable = (content, data) => {
 const postToConfluence = async (data) => {
     try {
         const pageData = await getConfluencePageVersion(pageId, auth);
-        
-        // Add logging to check pageData structure
-        console.log('Page Data:', pageData);
-        
-        if (!pageData.version || typeof pageData.version.number !== 'number') {
-            throw new Error('Page version information is missing or invalid.');
-        }
-        
         const currentVersion = pageData.version.number;
         const content = pageData.body.storage.value;
 
@@ -157,7 +157,6 @@ const postToConfluence = async (data) => {
         throw error;
     }
 };
-
 
 const getLatestVersions = (data) => {
     const latestVersionsMap = new Map();
@@ -211,8 +210,8 @@ app.get('/postToConfluence/', async (req, res) => {
             res.status(404).json({ message: 'Build details not found for the application name' });
         }
     } catch (err) {
-        console.error('Error fetching build details or posting to confluence:', err);
-        res.status(500).json({ error: 'Error fetching build details or posting to confluence' });
+        console.error('Error fetching build details or posting to Confluence:', err);
+        res.status(500).json({ error: 'Error fetching build details or posting to Confluence' });
     }
 });
 
@@ -252,24 +251,23 @@ pool.query('SELECT 1', (err, results) => {
     }
 });
 
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
-});
-
-// Scheduler to call postToConfluence every day at 12:00 AM
+// Scheduler to automatically post to Confluence every day at 12:00 AM
 schedule.scheduleJob('0 0 * * *', async () => {
     try {
         const query = 'SELECT * FROM maebuildinfo';
         const result = await executeQuery(query);
         const results = getLatestVersions(result);
-
         if (results.length > 0) {
             await postToConfluence(results);
-            console.log('Data posted to Confluence successfully');
+            console.log('Daily Confluence update successful.');
         } else {
-            console.log('No build details to post to Confluence');
+            console.log('No build details found for daily update.');
         }
-    } catch (error) {
-        console.error('Scheduler error:', error);
+    } catch (err) {
+        console.error('Error during daily Confluence update:', err);
     }
+});
+
+app.listen(port, () => {
+    console.log(`Server listening at http://localhost:${port}`);
 });
