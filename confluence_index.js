@@ -93,13 +93,15 @@ const updateOrInsertTable = (content, data) => {
                 </tr>`).join('')}
         </table>`;
 
-    if (regex.test(content)) {
-        return content.replace(regex, `<h3><strong>Version Control</strong></h3>$1${tableHtml}`);
+    const match = regex.exec(content);
+    if (match) {
+        return content.replace(regex, `<h3><strong>Version Control</strong></h3>${tableHtml}`);
     } else {
         console.error('Version Control heading not found');
         return null;
     }
 };
+
 
 const postToConfluence = async (data) => {
     try {
