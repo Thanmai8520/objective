@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql');
 const fetch = require('node-fetch');
+const schedule = require('node-schedule'); // Scheduler package
 
 const app = express();
 const port = 3000;
@@ -93,15 +94,13 @@ const updateOrInsertTable = (content, data) => {
                 </tr>`).join('')}
         </table>`;
 
-    const match = regex.exec(content);
-    if (match) {
-        return content.replace(regex, `<h3><strong>Version Control</strong></h3>${tableHtml}`);
+    if (regex.test(content)) {
+        return content.replace(regex, `<h3><strong>Version Control</strong></h3>$1${tableHtml}`);
     } else {
         console.error('Version Control heading not found');
         return null;
     }
 };
-
 
 const postToConfluence = async (data) => {
     try {
@@ -246,4 +245,22 @@ pool.query('SELECT 1', (err, results) => {
 
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
+});
+
+// Scheduler to call postToConfluence every day at 12:00 AM
+schedule.scheduleJob('0 0 * * *', async () => {
+    try {
+        const query = 'SELECT * FROM maebuildinfo';
+        const result = await executeQuery(query);
+        const results = getLatestVersions(result);
+
+        if (results.length > 0) {
+            await postToConfluence(results);
+            console.log('Data posted to Confluence successfully');
+        } else {
+            console.log('No build details to post to Confluence');
+        }
+    } catch (error) {
+        console.error('Scheduler error:', error);
+    }
 });
