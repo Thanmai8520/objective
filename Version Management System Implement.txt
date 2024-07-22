@@ -1,4 +1,3 @@
-Version Management System Implementation
 Overview
 The purpose of this project is to create a system that fetches and displays the current version of code deployed across various environments. Additionally, the system should post these details to Confluence for documentation purposes. The project involves a Node.js backend, a React frontend, and a MySQL database to store version details.
 
@@ -12,33 +11,20 @@ Setup
 The backend is implemented using Node.js and the Express framework. It interacts with a MySQL database to fetch and manage version details.
 
 Key Functionality
-Database Connection:
-
-A MySQL connection pool is set up to handle database queries.
-Connection details such as host, user, password, and database name are configured.
+Database Connection: A MySQL connection pool is set up to handle database queries with configured details such as host, user, password, and database name.
 API Endpoints:
-
 GET /mae/getBuild: Fetches all build details.
 GET /mae/getBuild/:applicationName: Fetches build details for a specific application.
 GET /refreshVSfile: Refreshes a JSON file with data from the database.
 GET /getvsflags/:envname: Fetches specific environment flags from a JSON file.
-Database Query:
-
-The queries are designed to fetch the latest build details based on the combination of ApplicationName and TargetEnvironment.
+Database Query: Queries are designed to fetch the latest build details based on the combination of ApplicationName and TargetEnvironment.
 Frontend
 Setup
 The frontend is implemented using ReactJS and styled with Bootstrap to ensure a responsive design.
 
 Key Functionality
-VersionTable Component:
-
-Fetches version details from the backend and displays them in a table format.
-Provides a dropdown to filter versions by application name.
-Ensures the latest version details are displayed based on the date and time.
-Styling:
-
-Bootstrap is used for styling the table and other UI components.
-The navigation bar is fixed and does not scroll with the page to provide a better user experience.
+VersionTable Component: Fetches version details from the backend and displays them in a table format, with a dropdown to filter versions by application name. It ensures the latest version details are displayed based on the date and time.
+Styling: Bootstrap is used for styling the table and other UI components. The navigation bar is fixed and does not scroll with the page to enhance user experience.
 Database
 Setup
 The database used is MySQL, with a table named maebuildinfo to store version details.
@@ -53,7 +39,10 @@ ReleaseNotes
 Date_Time
 Integration with Confluence
 Posting Version Details
-A POST request is made to the Confluence API to update the version details page. This ensures that the documentation in Confluence is always up-to-date with the latest deployment information.
+The integration with Confluence has been completed. A POST request is made to the Confluence API to update the version details page, ensuring that the documentation in Confluence is always up-to-date with the latest deployment information.
+
+Scheduling
+Scheduling the POST API to Confluence for automated updates is currently in progress. This will ensure that the Confluence page is updated regularly with the latest version details.
 
 Steps to Implement
 Setup Node.js Backend:
@@ -73,26 +62,12 @@ Ensure the table is populated with version details.
 Integrate with Confluence:
 
 Use the Confluence API to post the latest version details.
-Schedule regular updates to ensure documentation is current.
+Continue working on scheduling the POST API for automated updates.
 Challenges and Solutions
-Database Connectivity Issues:
-
-Increased connection timeout to handle delays.
-Implemented error handling to manage connection failures.
-Data Filtering:
-
-Ensured the latest version details are fetched and displayed based on the date and time.
-Responsive Design:
-
-Used Bootstrap to create a responsive table and navigation bar.
-Ensured the navigation bar is fixed and adapts to different screen sizes.
+Database Connectivity Issues: Increased connection timeout to handle delays and implemented error handling to manage connection failures.
+Data Filtering: Ensured the latest version details are fetched and displayed based on the date and time.
+Responsive Design: Used Bootstrap to create a responsive table and navigation bar, ensuring the navigation bar adapts to different screen sizes.
 Future Enhancements
-Automated Updates:
-
-Automate the process of posting to Confluence using scheduled jobs.
-Enhanced Filtering:
-
-Provide more advanced filtering options in the frontend.
-Performance Optimization:
-
-Optimize database queries for better performance.
+Automated Updates: Complete the automation of posting to Confluence using scheduled jobs.
+Enhanced Filtering: Provide more advanced filtering options in the frontend.
+Performance Optimization: Optimize database queries for better performance.
