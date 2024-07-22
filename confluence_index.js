@@ -56,14 +56,12 @@ const getConfluencePageVersion = async (pageId, auth) => {
         }
 
         const result = await response.json();
+        
+        // Add logging to inspect the response structure
+        console.log('Confluence Page Response:', result);
 
-        // Log the response to check the structure
-        console.log('Confluence Page Response:', JSON.stringify(result, null, 2));
-
-        // Check if version information is present and valid
         if (!result.version || typeof result.version.number !== 'number') {
-            console.warn('Page version information is missing or invalid. Defaulting to version 1.');
-            return { version: { number: 1 }, body: { storage: { value: result.body.storage.value } } }; // Return default version
+            throw new Error('Page version information is missing or invalid.');
         }
 
         return result;
@@ -74,7 +72,10 @@ const getConfluencePageVersion = async (pageId, auth) => {
 };
 
 const updateOrInsertTable = (content, data) => {
+    // Regex to match the existing table
     const regex = /(<h3[^>]*>\s*<strong>Version Control<\/strong>\s*<\/h3>)([\s\S]*?)(<table[\s\S]*?<\/table>)?/;
+
+    // New table HTML
     const tableHtml = `
         <table>
             <tr>
@@ -104,7 +105,9 @@ const updateOrInsertTable = (content, data) => {
                 </tr>`).join('')}
         </table>`;
 
+    // Replace or insert the table in the content
     return content.replace(regex, (match, heading, beforeTable, existingTable) => {
+        // If an existing table is found, replace it; otherwise, insert the new table
         if (existingTable) {
             return `${heading}${beforeTable}${tableHtml}`;
         } else {
@@ -250,11 +253,15 @@ pool.query('SELECT 1', (err, results) => {
     if (err) {
         console.error('Error connecting to the database:', err);
     } else {
-        console.log('Connected to the database');
+        console.log('Database connection is working.');
     }
 });
 
-// Scheduler to automatically post to Confluence every day at 12:00 AM
+app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+});
+
+// Schedule the task to run every day at 12:00 AM
 schedule.scheduleJob('0 0 * * *', async () => {
     try {
         const query = 'SELECT * FROM maebuildinfo';
@@ -263,13 +270,11 @@ schedule.scheduleJob('0 0 * * *', async () => {
 
         if (results.length > 0) {
             await postToConfluence(results);
-            console.log('Data posted to Confluence successfully');
+            console.log('Scheduled task completed: Data posted to Confluence successfully');
+        } else {
+            console.log('Scheduled task completed: No build details found for posting');
         }
     } catch (err) {
-        console.error('Error posting data to Confluence:', err);
+        console.error('Error during scheduled task:', err);
     }
-});
-
-app.listen(port, () => {
-    console.log(`Server listening at http://localhost:${port}`);
 });
