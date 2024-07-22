@@ -72,7 +72,7 @@ const getConfluencePageVersion = async (pageId, auth) => {
 };
 
 const updateOrInsertTable = (content, data) => {
-    // Regex to match the existing table
+    // Regex to match the heading and existing table
     const regex = /(<h3[^>]*>\s*<strong>Version Control<\/strong>\s*<\/h3>)([\s\S]*?)(<table[\s\S]*?<\/table>)?/;
 
     // New table HTML
