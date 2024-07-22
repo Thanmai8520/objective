@@ -102,12 +102,12 @@ const updateOrInsertTable = (content, data) => {
                 </tr>`).join('')}
         </table>`;
 
-    if (regex.test(content)) {
-        return content.replace(regex, (_, heading, existingTableHtml) => `${heading}${tableHtml}`);
-    } else {
-        console.error('Version Control heading not found');
-        return null;
-    }
+    return content.replace(regex, (match, heading, beforeTable, existingTable) => {
+        if (existingTable) {
+            return `${heading}${beforeTable}${tableHtml}`;
+        } else {
+            return `${heading}${tableHtml}`;
+        }
 };
 
 const postToConfluence = async (data) => {
