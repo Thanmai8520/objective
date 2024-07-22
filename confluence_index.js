@@ -56,12 +56,14 @@ const getConfluencePageVersion = async (pageId, auth) => {
         }
 
         const result = await response.json();
-        
-        // Add logging to inspect the response structure
-        console.log('Confluence Page Response:', result);
 
+        // Log the response to check the structure
+        console.log('Confluence Page Response:', JSON.stringify(result, null, 2));
+
+        // Check if version information is present and valid
         if (!result.version || typeof result.version.number !== 'number') {
-            throw new Error('Page version information is missing or invalid.');
+            console.warn('Page version information is missing or invalid. Defaulting to version 1.');
+            return { version: { number: 1 }, body: { storage: { value: result.body.storage.value } } }; // Return default version
         }
 
         return result;
@@ -108,6 +110,7 @@ const updateOrInsertTable = (content, data) => {
         } else {
             return `${heading}${tableHtml}`;
         }
+    });
 };
 
 const postToConfluence = async (data) => {
@@ -260,12 +263,10 @@ schedule.scheduleJob('0 0 * * *', async () => {
 
         if (results.length > 0) {
             await postToConfluence(results);
-            console.log('Daily Confluence update successful.');
-        } else {
-            console.log('No build details found for daily update.');
+            console.log('Data posted to Confluence successfully');
         }
     } catch (err) {
-        console.error('Error during daily Confluence update:', err);
+        console.error('Error posting data to Confluence:', err);
     }
 });
 
