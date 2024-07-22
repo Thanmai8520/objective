@@ -39,7 +39,7 @@ const executeQuery = (query, params) => {
 };
 
 const getConfluencePageVersion = async (pageId, auth) => {
-    const confluenceUrlWithPageId = `${confluenceUrl}/${pageId}?expand=version`;
+    const confluenceUrlWithPageId = `${confluenceUrl}/${pageId}?expand=version,body.storage`;
 
     try {
         const response = await fetch(confluenceUrlWithPageId, {
@@ -55,54 +55,78 @@ const getConfluencePageVersion = async (pageId, auth) => {
         }
 
         const result = await response.json();
-        return result.version.number;
+        return result;
     } catch (error) {
         console.error('Error fetching Confluence page version:', error);
         throw error;
     }
 };
 
-const getConfluencePageContent = async (pageId, auth) => {
-    const confluenceUrlWithPageId = `${confluenceUrl}/${pageId}?expand=body.storage`;
+const updateOrInsertTable = (content, data) => {
+    const regex = /<h3[^>]*>\s*<strong>Version Control<\/strong>\s*<\/h3>([\s\S]*?)(<table[\s\S]*?<\/table>)?/;
+    const tableHtml = `
+        <table>
+            <tr>
+                <th>Application Name</th>
+                <th>CIT Version</th>
+                <th>SIT Version</th>
+                <th>OAT</th>
+                <th>VPT</th>
+                <th>Prod Version</th>
+                <th>Release</th>
+                <th>Jira Task ID</th>
+                <th>Release Notes</th>
+                <th>Date and Time</th>
+            </tr>
+            ${data.map(item => `
+                <tr>
+                    <td>${item.ApplicationName || ''}</td>
+                    <td>${item.CIT_Version || ''}</td>
+                    <td>${item.SIT_Version || ''}</td>
+                    <td>${item.OAT || ''}</td>
+                    <td>${item.VPT || ''}</td>
+                    <td>${item.Prod_Version || ''}</td>
+                    <td>${item.Release || ''}</td>
+                    <td>${item.JiraTaskId || ''}</td>
+                    <td>${item.ReleaseNotes || ''}</td>
+                    <td>${item.Date_Time || ''}</td>
+                </tr>`).join('')}
+        </table>`;
 
-    try {
-        const response = await fetch(confluenceUrlWithPageId, {
-            method: 'GET',
-            headers: {
-                'Authorization': auth,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        return result.body.storage.value;
-    } catch (error) {
-        console.error('Error fetching Confluence page content:', error);
-        throw error;
+    if (regex.test(content)) {
+        return content.replace(regex, `<h3><strong>Version Control</strong></h3>$1${tableHtml}`);
+    } else {
+        console.error('Version Control heading not found');
+        return null;
     }
 };
 
-const updateConfluencePageContent = async (pageId, auth, newContent, newVersion) => {
-    const confluenceUrlWithPageId = `${confluenceUrl}/${pageId}`;
-
-    const requestBody = {
-        version: { number: newVersion },
-        title: 'Build Information',
-        type: 'page',
-        body: {
-            storage: {
-                value: newContent,
-                representation: 'storage'
-            }
-        }
-    };
-
+const postToConfluence = async (data) => {
     try {
-        const response = await fetch(confluenceUrlWithPageId, {
+        const pageData = await getConfluencePageVersion(pageId, auth);
+        const currentVersion = pageData.version.number;
+        const content = pageData.body.storage.value;
+
+        const updatedContent = updateOrInsertTable(content, data);
+        if (!updatedContent) {
+            throw new Error('Version Control heading not found in the Confluence page.');
+        }
+
+        const newVersion = currentVersion + 1;
+
+        const requestBody = {
+            version: { number: newVersion },
+            title: pageData.title,
+            type: 'page',
+            body: {
+                storage: {
+                    value: updatedContent,
+                    representation: 'storage'
+                }
+            }
+        };
+
+        const response = await fetch(`${confluenceUrl}/${pageId}`, {
             method: 'PUT',
             headers: {
                 'Authorization': auth,
@@ -111,17 +135,16 @@ const updateConfluencePageContent = async (pageId, auth, newContent, newVersion)
             body: JSON.stringify(requestBody)
         });
 
-        const text = await response.text();
-
         if (!response.ok) {
+            const text = await response.text();
             throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
         }
 
-        const result = JSON.parse(text);
+        const result = await response.json();
         console.log('Confluence response:', result);
         return result;
     } catch (error) {
-        console.error('Error updating Confluence page content:', error);
+        console.error('Error posting to Confluence:', error);
         throw error;
     }
 };
@@ -144,24 +167,24 @@ const getLatestVersions = (data) => {
 const convertDate = (dateString) => {
     if (!dateString || typeof dateString !== 'string') {
         console.error('Invalid Date Time format:', dateString);
-        return 0; // Handle undefined, null, or invalid format
+        return 0;
     }
 
     const parts = dateString.split(' ');
     if (parts.length !== 2) {
         console.error('Invalid Date Time format:', dateString);
-        return 0; // Handle unexpected format
+        return 0;
     }
 
     const dateParts = parts[0].split('/');
     const timeParts = parts[1].split(':');
     if (dateParts.length !== 3 || timeParts.length !== 3) {
         console.error('Invalid Date Time format:', dateString);
-        return 0; // Handle unexpected format
+        return 0;
     }
 
     const formattedDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0], timeParts[0], timeParts[1], timeParts[2]);
-    return formattedDate.getTime(); // Return milliseconds for comparison
+    return formattedDate.getTime();
 };
 
 app.get('/postToConfluence/', async (req, res) => {
@@ -171,12 +194,8 @@ app.get('/postToConfluence/', async (req, res) => {
         const result = await executeQuery(query);
         const results = getLatestVersions(result);
 
-        console.log(results);
-
         if (results.length > 0) {
-            const dataToPost = results;
-            await postToConfluence(dataToPost);
-
+            await postToConfluence(results);
             res.json({ message: 'Data posted to Confluence successfully' });
         } else {
             res.status(404).json({ message: 'Build details not found for the application name' });
@@ -186,72 +205,6 @@ app.get('/postToConfluence/', async (req, res) => {
         res.status(500).json({ error: 'Error fetching build details or posting to confluence' });
     }
 });
-
-const postToConfluence = async (data) => {
-    try {
-        const currentVersion = await getConfluencePageVersion(pageId, auth);
-        const newVersion = currentVersion + 1;
-        const currentContent = await getConfluencePageContent(pageId, auth);
-
-        const tableHtml = `
-            <table>
-                <tr>
-                    <th>Application Name</th>
-                    <th>CIT Version</th>
-                    <th>SIT Version</th>
-                    <th>OAT</th>
-                    <th>VPT</th>
-                    <th>Prod Version</th>
-                    <th>Release</th>
-                    <th>Jira Task ID</th>
-                    <th>Release Notes</th>
-                    <th>Date and Time</th>
-                </tr>
-                ${data.map(item => `
-                    <tr>
-                        <td>${item.ApplicationName || ''}</td>
-                        <td>${item.CIT_Version || ''}</td>
-                        <td>${item.SIT_Version || ''}</td>
-                        <td>${item.OAT || ''}</td>
-                        <td>${item.VPT || ''}</td>
-                        <td>${item.Prod_Version || ''}</td>
-                        <td>${item.Release || ''}</td>
-                        <td>${item.JiraTaskId || ''}</td>
-                        <td>${item.ReleaseNotes || ''}</td>
-                        <td>${item.Date_Time || ''}</td>
-                    </tr>`).join('')}
-            </table>`;
-
-        const newContent = updateOrInsertTable(currentContent, tableHtml, 'Version Control');
-        await updateConfluencePageContent(pageId, auth, newContent, newVersion);
-
-    } catch (error) {
-        console.error('Error posting to Confluence:', error);
-        throw error;
-    }
-};
-
-const updateOrInsertTable = (content, tableHtml, heading) => {
-    const headingRegex = new RegExp(`<h3[^>]*>${heading}</h3>`, 'i');
-    const tableRegex = new RegExp(`<table[^>]*>.*?<\\/table>`, 'is');
-
-    let newContent = content;
-
-    if (headingRegex.test(content)) {
-        const headingIndex = content.search(headingRegex);
-
-        const contentAfterHeading = content.substring(headingIndex);
-        if (tableRegex.test(contentAfterHeading)) {
-            newContent = content.replace(tableRegex, tableHtml);
-        } else {
-            newContent = content.replace(headingRegex, `$&${tableHtml}`);
-        }
-    } else {
-        newContent = `${content}<h3><strong>${heading}</strong></h3>${tableHtml}`;
-    }
-
-    return newContent;
-};
 
 app.get('/mae/getBuild', (req, res) => {
     const query = 'SELECT * FROM maebuildinfo';
