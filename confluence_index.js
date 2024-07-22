@@ -72,7 +72,7 @@ const getConfluencePageVersion = async (pageId, auth) => {
 };
 
 const updateOrInsertTable = (content, data) => {
-    const regex = /<h3[^>]*>\s*<strong>Version Control<\/strong>\s*<\/h3>([\s\S]*?)(<table[\s\S]*?<\/table>)?/;
+    const regex = /(<h3[^>]*>\s*<strong>Version Control<\/strong>\s*<\/h3>)([\s\S]*?)(<table[\s\S]*?<\/table>)?/;
     const tableHtml = `
         <table>
             <tr>
@@ -103,7 +103,7 @@ const updateOrInsertTable = (content, data) => {
         </table>`;
 
     if (regex.test(content)) {
-        return content.replace(regex, `<h3><strong>Version Control</strong></h3>$1${tableHtml}`);
+        return content.replace(regex, (_, heading, existingTableHtml) => `${heading}${tableHtml}`);
     } else {
         console.error('Version Control heading not found');
         return null;
@@ -257,6 +257,7 @@ schedule.scheduleJob('0 0 * * *', async () => {
         const query = 'SELECT * FROM maebuildinfo';
         const result = await executeQuery(query);
         const results = getLatestVersions(result);
+
         if (results.length > 0) {
             await postToConfluence(results);
             console.log('Daily Confluence update successful.');
