@@ -11,5 +11,5 @@ function App() {
 }
 
 export default App;
-Hi team! I’m Sri Santhoshi Thanmai Kora, a CSE (Honors) graduate from KL University, Vijayawada. I also have a Diploma in Bharatanatyam and a Certificate in Kuchipudi. I enjoy sketching, cubing, and learning new things. Excited to grow and collaborate with you all!
+Hey team! I’m Sri Santhoshi Thanmai Kora, a CSE grad from KL University, Vijayawada. I’m into classical dance – trained in Bharatanatyam and Kuchipudi. I love sketching, cubing, and picking up new things. Super excited to be working and learning with you all!
 
